@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/overlay_dot_container"
+    android:layout_width="64dp"
+    android:layout_height="64dp"
+    android:orientation="vertical"
+    android:background="@drawable/floating_dot_bg"
+    android:gravity="center">
+
+    <ImageView
+        android:id="@+id/dot_icon"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:src="@drawable/ic_dot_blue"
+        android:contentDescription="Neura Dot"
+        android:tint="@android:color/white" />
+
+</LinearLayout>
