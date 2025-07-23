@@ -30,7 +30,6 @@ class AuthService {
       await prefs.setString('voice', user["voice"] ?? "female");
       await prefs.setString('tier', user["tier"] ?? "free");
 
-
       // ✅ Return user map so caller can use it
       return user;
     } else {
@@ -38,15 +37,13 @@ class AuthService {
     }
   }
 
-
   /// Update onboarding details
   Future<Map<String, dynamic>> updateOnboarding({
     required String deviceId,
     required String aiName,
     required String voice,
     required String preferredLang,
-  })
-  async {
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
 
@@ -73,13 +70,11 @@ class AuthService {
     return jsonDecode(response.body); // ✅ Return full JSON payload
   }
 
-
   /// Upload Wake words details
   Future<String> uploadWakewordSamples({
     required String deviceId,
     required List<File> audioSamples,
-  })
-  async {
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
 
@@ -93,12 +88,19 @@ class AuthService {
 
     request.headers["Authorization"] = "Bearer $token";
     request.fields["device_id"] = deviceId;
-    request.fields["wakeword_label"] = "neura"; // 🔁 You can make this dynamic later
+    request.fields["wakeword_label"] =
+        "neura"; // 🔁 You can make this dynamic later
 
     // Rename fields to match backend: file1, file2, file3
-    request.files.add(await http.MultipartFile.fromPath("file1", audioSamples[0].path));
-    request.files.add(await http.MultipartFile.fromPath("file2", audioSamples[1].path));
-    request.files.add(await http.MultipartFile.fromPath("file3", audioSamples[2].path));
+    request.files.add(
+      await http.MultipartFile.fromPath("file1", audioSamples[0].path),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath("file2", audioSamples[1].path),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath("file3", audioSamples[2].path),
+    );
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
@@ -111,7 +113,6 @@ class AuthService {
 
     return json['model_path'];
   }
-
 
   /// Download Wake words details
   Future<String?> downloadWakewordModel(String deviceId) async {
@@ -133,12 +134,10 @@ class AuthService {
     }
   }
 
-
   /// Update updateUserLang details
   Future<Map<String, dynamic>> updateUserLang({
     required String preferredLang,
-  })
-  async {
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final deviceId = prefs.getString('device_id');
     final token = prefs.getString('auth_token');
@@ -164,12 +163,32 @@ class AuthService {
     return jsonDecode(response.body); // ✅ Return full JSON payload
   }
 
+  /// Active/Deactive Interpreter Mode
+  static Future<Map<String, dynamic>> toggleInterpreterMode(
+    String deviceId, {
+    required bool enable,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("auth_token") ?? "";
+
+    final response = await http.post(
+      Uri.parse("$Baseurl/ws/toggle-interpreter-mode"),
+      headers: {"Authorization": "Bearer $token"},
+      body: {"device_id": deviceId, "enable": enable.toString()},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception("Failed to toggle Interpreter Mode.");
+    }
+  }
 
   /// Update Translate UI as per user
   Future<Map<String, String>> translateUIStrings({
     required List<String> keys,
-    required String targetLang,})
-  async {
+    required String targetLang,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
     final deviceId = prefs.getString('device_id');
@@ -185,7 +204,7 @@ class AuthService {
         "Authorization": "Bearer $token",
       },
       body: jsonEncode({
-        "device_id": deviceId,         // ✅ Now included
+        "device_id": deviceId, // ✅ Now included
         "strings": keys,
         "target_lang": targetLang,
       }),
@@ -203,5 +222,4 @@ class AuthService {
 
     return Map<String, String>.from(data['translations']);
   }
-
 }

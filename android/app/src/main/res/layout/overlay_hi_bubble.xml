@@ -1,0 +1,19 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/hi_bubble_container"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/bubble_bg"
+    android:padding="12dp"
+    android:elevation="12dp"
+    android:gravity="center_vertical"
+    android:layout_marginTop="10dp">
+
+    <TextView
+        android:id="@+id/hi_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="👂 Hi, I'm listening..."
+        android:textColor="@android:color/white"
+        android:textSize="14sp" />
+</LinearLayout>

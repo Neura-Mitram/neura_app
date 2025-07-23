@@ -39,16 +39,86 @@ class _SosContactScreenState extends State<SosContactScreen> {
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
+      print("✅ Contacts fetched: ${data['contacts']}");
       setState(() {
         contacts = List<Map<String, dynamic>>.from(data['contacts']);
         isLoading = false;
       });
     } else {
+      print("❌ Failed to fetch contacts: ${res.statusCode} ${res.body}");
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(TranslationService.tr("❌ Failed to load SOS contacts"))),
+        SnackBar(
+          content: Text(TranslationService.tr("❌ Failed to load SOS contacts")),
+        ),
       );
     }
+  }
+
+  void _addContactDialog() {
+    if (contacts.length >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            TranslationService.tr("You can only save up to 3 SOS contacts."),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final nameController = TextEditingController();
+    final phoneController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(TranslationService.tr("Add SOS Contact")),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: TranslationService.tr('Name'),
+              ),
+            ),
+            TextField(
+              controller: phoneController,
+              decoration: InputDecoration(
+                labelText: TranslationService.tr('Phone'),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(TranslationService.tr("Cancel")),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (nameController.text.trim().isEmpty ||
+                  phoneController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      TranslationService.tr(
+                        "Please enter both name and phone number.",
+                      ),
+                    ),
+                  ),
+                );
+                return;
+              }
+              _addContact(nameController.text, phoneController.text);
+              Navigator.pop(context);
+            },
+            child: Text(TranslationService.tr("Save")),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _addContact(String name, String phone) async {
@@ -67,10 +137,14 @@ class _SosContactScreenState extends State<SosContactScreen> {
     );
 
     if (res.statusCode == 200) {
+      print("✅ Contact added.");
       _fetchContacts();
     } else {
+      print("❌ Failed to add contact: ${res.statusCode} ${res.body}");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(TranslationService.tr("❌ Failed to add contact"))),
+        SnackBar(
+          content: Text(TranslationService.tr("❌ Failed to add contact")),
+        ),
       );
     }
   }
@@ -91,39 +165,31 @@ class _SosContactScreenState extends State<SosContactScreen> {
     );
 
     if (res.statusCode == 200) {
+      print("✅ Contact deleted.");
       _fetchContacts();
     } else {
+      print("❌ Failed to delete contact: ${res.statusCode} ${res.body}");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(TranslationService.tr("❌ Failed to delete contact"))),
+        SnackBar(
+          content: Text(TranslationService.tr("❌ Failed to delete contact")),
+        ),
       );
     }
   }
 
-  void _addContactDialog() {
-    final nameController = TextEditingController();
-    final phoneController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(TranslationService.tr("Add SOS Contact")),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameController, decoration: InputDecoration(labelText: TranslationService.tr('Name'))),
-            TextField(controller: phoneController, decoration: InputDecoration(labelText: TranslationService.tr('Phone'))),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(TranslationService.tr("Cancel"))),
-          ElevatedButton(
-            onPressed: () {
-              _addContact(nameController.text, phoneController.text);
-              Navigator.pop(context);
-            },
-            child: Text(TranslationService.tr("Save")),
-          )
-        ],
+  Widget _nextButton() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ElevatedButton(
+        onPressed: contacts.isNotEmpty
+            ? () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('sos_contacts_completed', true);
+                Navigator.pushNamed(context, '/wakeword');
+              }
+            : null,
+        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+        child: Text(TranslationService.tr("Next")),
       ),
     );
   }
@@ -137,24 +203,25 @@ class _SosContactScreenState extends State<SosContactScreen> {
           : contacts.isEmpty
           ? Center(child: Text(TranslationService.tr("No contacts added.")))
           : ListView.builder(
-        itemCount: contacts.length,
-        itemBuilder: (context, index) {
-          final c = contacts[index];
-          return ListTile(
-            leading: const Icon(Icons.contact_phone),
-            title: Text(c['name'] ?? ''),
-            subtitle: Text(c['phone'] ?? ''),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: () => _deleteContact(c['id']),
+              itemCount: contacts.length,
+              itemBuilder: (context, index) {
+                final c = contacts[index];
+                return ListTile(
+                  leading: const Icon(Icons.contact_phone),
+                  title: Text(c['name'] ?? ''),
+                  subtitle: Text(c['phone'] ?? ''),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: () => _deleteContact(c['id']),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addContactDialog,
         child: const Icon(Icons.add),
       ),
+      bottomNavigationBar: _nextButton(),
     );
   }
 }

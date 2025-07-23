@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:neura_app/controllers/chat_controller.dart';
+import 'package:neura_app/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:http/http.dart' as http;
-import '../services/api_base.dart';
 import '../models/chat_message.dart';
 import '../controllers/chat_provider.dart';
 import '../widgets/avatar_widget.dart';
@@ -419,22 +417,13 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> callInterpreter(ChatController chat) async {
-    final isCurrentlyOn = chat.activeMode == "interpreter";
+    try {
+      final isCurrentlyOn = chat.activeMode == "interpreter";
+      final result = await AuthService.toggleInterpreterMode(
+        widget.deviceId,
+        enable: !isCurrentlyOn,
+      );
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString("auth_token") ?? "";
-
-    final response = await http.post(
-      Uri.parse("$Baseurl/voice/toggle-interpreter-mode"),
-      headers: {"Authorization": "Bearer $token"},
-      body: {
-        "device_id": widget.deviceId,
-        "enable": (!isCurrentlyOn).toString(),
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final result = jsonDecode(response.body);
       final message = result["message"] ?? "Updated.";
       final newMode = result["active_mode"] ?? "manual";
 
@@ -442,12 +431,13 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
       chat.updateActiveMode(newMode);
 
       // ✅ Optionally persist
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setString("active_mode", newMode);
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
-    } else {
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to toggle Interpreter Mode.")),
       );

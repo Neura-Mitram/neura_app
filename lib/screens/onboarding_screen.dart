@@ -188,7 +188,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 Navigator.of(context).pop(); // close dialog
                 await Future.delayed(const Duration(seconds: 1));
                 if (context.mounted) {
-                  Navigator.pushReplacementNamed(context, '/wakeword');
+                  Navigator.pushReplacementNamed(context, '/sos-contact');
                 }
               },
             );
@@ -205,7 +205,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               onButtonTap: () async {
                 Navigator.of(context).pop();
                 if (context.mounted) {
-                  Navigator.pushReplacementNamed(context, '/wakeword');
+                  Navigator.pushReplacementNamed(context, '/sos-contact');
                 }
               },
             );

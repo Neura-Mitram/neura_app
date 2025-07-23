@@ -16,12 +16,15 @@ import org.tensorflow.lite.Interpreter
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Locale
+import java.net.URLEncoder
 
 class WakewordForegroundService : Service() {
     private var interpreter: Interpreter? = null
     private var isListening = true
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private lateinit var wakeLock: PowerManager.WakeLock
+    private var lastTriggeredAt: Long = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -92,14 +95,20 @@ class WakewordForegroundService : Service() {
 
                 outputBuffer.rewind()
                 val score = outputBuffer.float
-                if (score > 0.8f) {
+
+                val now = System.currentTimeMillis()
+                if (score > 0.8f && now - lastTriggeredAt > 4000) {
+                    lastTriggeredAt = now
                     vibrateOnTrigger()
                     playWelcomeSoundFromBackend()
-                    startService(Intent(this, OverlayDotService::class.java))
+                    try {
+                        startService(Intent(this, OverlayDotService::class.java))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
 
                     val intent = Intent("com.neura.WAKEWORD_TRIGGERED")
                     sendBroadcast(intent)
-
                     break
                 }
             }
@@ -126,9 +135,16 @@ class WakewordForegroundService : Service() {
             val langPref = prefs.getString("flutter.preferred_lang", "en") ?: "en"
             val voiceId = if (voicePref == "female") "onwK4e9ZLuTAKqWW03F9" else "EXAVITQu4vr4xnSDxMaL"
 
-            val ttsUrl = "wss://byshiladityamallick-neura-smart-assistant.hf.space/stream/elevenlabs?text=Hi, I’m listening&voice_id=$voiceId&lang=$langPref"
+            val encodedText = URLEncoder.encode("Hi, I'm listening", "UTF-8")
+            val ttsUrl = "wss://byshiladityamallick-neura-smart-assistant.hf.space/ws/stream/elevenlabs?text=$encodedText&voice_id=$voiceId&lang=$langPref"
             val client = OkHttpClient()
             val request = Request.Builder().url(ttsUrl).build()
+
+            val minBufferSize = AudioTrack.getMinBufferSize(
+                22050,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            )
 
             val player = AudioTrack(
                 AudioAttributes.Builder()
@@ -140,19 +156,38 @@ class WakewordForegroundService : Service() {
                     .setSampleRate(22050)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build(),
-                1024 * 4,
+                minBufferSize,
                 AudioTrack.MODE_STREAM,
                 AudioManager.AUDIO_SESSION_ID_GENERATE
             )
 
             client.newWebSocket(request, object : WebSocketListener() {
+                var isPlaying = false
+
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                     player.write(bytes.toByteArray(), 0, bytes.size)
-                    if (player.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                    if (!isPlaying) {
                         player.play()
+                        isPlaying = true
+                    }
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    if (isPlaying) {
+                        player.stop()
+                        player.release()
+                    }
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    t.printStackTrace()
+                    if (isPlaying) {
+                        player.stop()
+                        player.release()
                     }
                 }
             })
+
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -171,7 +206,6 @@ class WakewordForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Ensures the service restarts automatically if it's killed
         return START_STICKY
     }
 

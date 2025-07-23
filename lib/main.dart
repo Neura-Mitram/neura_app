@@ -25,6 +25,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 final platform = MethodChannel('neura/wakeword');
 final platformMic = MethodChannel('com.neura/mic_control');
+final platformSos = MethodChannel('sos.screen.trigger');
 
 Future<void> startWakewordService() async {
   try {
@@ -54,11 +55,13 @@ void main() async {
   final deviceId = prefs.getInt('device_id');
   final tier = prefs.getString('tier') ?? "free"; // fixed key
   final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+  final sosContactCompleted = prefs.getBool('sos_contacts_completed') ?? false;
   final wakewordCompleted = prefs.getBool('wakeword_completed') ?? false;
   final activeMode = prefs.getString('active_mode') ?? "manual"; // ✅
 
   bool isLoggedIn = deviceId != null;
   bool needsOnboarding = !onboardingCompleted;
+  bool needssosContact = !sosContactCompleted;
   bool needsWakeword = !wakewordCompleted;
 
   // ✅ Automatically start wakeword background listener
@@ -79,6 +82,14 @@ void main() async {
     }
   });
 
+  // ✅ Automatically Open SOS Channel
+  platformSos.setMethodCallHandler((call) async {
+    if (call.method == "openSosScreen") {
+      final args = Map<String, dynamic>.from(call.arguments as Map);
+      navigatorKey.currentState?.pushNamed('/sos-alert', arguments: args);
+    }
+  });
+
   runApp(
     RestartWidget(
       // ✅ Wrap app
@@ -86,6 +97,7 @@ void main() async {
         isLoggedIn: isLoggedIn,
         userTier: tier,
         needsOnboarding: needsOnboarding,
+        needssosContact: needssosContact,
         needsWakeword: needsWakeword,
       ),
     ),
@@ -96,12 +108,14 @@ class NeuraApp extends StatelessWidget {
   final bool isLoggedIn;
   final String userTier;
   final bool needsOnboarding;
+  final bool needssosContact;
   final bool needsWakeword;
 
   const NeuraApp({
     required this.isLoggedIn,
     required this.userTier,
     required this.needsOnboarding,
+    required this.needssosContact,
     required this.needsWakeword,
     Key? key,
   }) : super(key: key);
@@ -114,6 +128,8 @@ class NeuraApp extends StatelessWidget {
       initialRoute = '/';
     } else if (needsOnboarding) {
       initialRoute = '/onboarding';
+    } else if (needssosContact) {
+      initialRoute = '/sos-contact';
     } else if (needsWakeword) {
       initialRoute = '/wakeword';
     } else {
@@ -161,7 +177,6 @@ class NeuraApp extends StatelessWidget {
         '/nearby-sos': (context) => const NearbySosScreen(),
         '/community-reports': (context) => const CommunityReportsScreen(),
         '/wakeword': (context) => const WakewordTrainerScreen(),
-        // '/sos-alert': (context) => const SosAlertScreen()
       },
     );
   }

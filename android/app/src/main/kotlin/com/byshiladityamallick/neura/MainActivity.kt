@@ -1,5 +1,6 @@
 package com.byshiladityamallick.neura
 
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -8,13 +9,23 @@ import android.speech.tts.TextToSpeech
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.telephony.SmsManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.MethodChannel
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okio.ByteString
 import java.util.*
+import org.json.JSONObject
+import java.io.IOException
+
 
 class MainActivity : FlutterActivity() {
     private val WAKEWORD_CHANNEL = "neura/wakeword"
@@ -26,56 +37,48 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // ✅ Cache engine for overlay + background access
+        // ✅ Cache engine
         FlutterEngineCache.getInstance().put("main_engine", flutterEngine)
 
-        // ✅ Wakeword + overlay service control
+        // ✅ Wakeword + overlay control
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WAKEWORD_CHANNEL)
         methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "startWakewordService" -> {
                     val intent = Intent(this, WakewordForegroundService::class.java)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
-                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+                    else startService(intent)
                     result.success(true)
                 }
-
                 "startOverlayDotService" -> {
                     val intent = Intent(this, OverlayDotService::class.java)
                     startService(intent)
                     result.success(true)
                 }
-
                 "stopOverlayDotService" -> {
                     val intent = Intent(this, OverlayDotService::class.java)
                     stopService(intent)
                     result.success(true)
                 }
-
                 "acquireWakeLock" -> {
                     val pm = getSystemService(POWER_SERVICE) as PowerManager
                     if (wakeLock == null) {
                         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "neura::micLock")
                         wakeLock?.setReferenceCounted(false)
                     }
-                    wakeLock?.acquire(10 * 60 * 1000L /*10 minutes*/)
+                    wakeLock?.acquire(10 * 60 * 1000L)
                     result.success(true)
                 }
-
                 "releaseWakeLock" -> {
                     wakeLock?.release()
                     wakeLock = null
                     result.success(true)
                 }
-
                 else -> result.notImplemented()
             }
         }
 
-        // ✅ TTS stream + native fallback
+        // ✅ Native TTS & ElevenLabs fallback
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TTS_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -99,7 +102,95 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        // ✅ Ask for battery optimization exemption
+        // ✅ Native Silent SMS Sender
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "sos.sms.native")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "sendSilentSms") {
+                    val contacts = call.argument<List<Map<String, String>>>("contacts")
+                    val message = call.argument<String>("message") ?: "🚨 Emergency! I need help."
+
+                    try {
+                        val smsManager = SmsManager.getDefault()
+                        contacts?.forEach {
+                            val phone = it["phone"]
+                            if (!phone.isNullOrEmpty()) {
+                                smsManager.sendTextMessage(phone, null, message, null, null)
+                            }
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SMS_FAILED", "Failed to send SMS: ${e.message}", null)
+                    }
+                } else {
+                    result.notImplemented()
+                }
+            }
+
+        // ✅ Smart SOS Escalation Logic
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "sos.sosLogic")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "triggerSosFlow") {
+                    val message = call.argument<String>("message") ?: "Neura detected emergency keyword."
+                    val location = call.argument<String>("location") ?: ""
+
+                    val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                    val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                        powerManager.isInteractive
+                    } else {
+                        powerManager.isScreenOn
+                    }
+
+                    if (isScreenOn) {
+                        // ✅ Show toast + wait 5s — let user cancel via dot
+                        Toast.makeText(this, "🔴 Danger detected. Sending SOS in 5s…", Toast.LENGTH_LONG).show()
+
+                        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                        val deviceId = prefs.getString("flutter.device_id", null)
+                        val token = prefs.getString("auth_token", null)
+                        if (deviceId != null && token != null) {
+                            fetchAndSendSosContacts(deviceId, token, message)
+                        }
+
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "sos.screen.trigger")
+                                .invokeMethod("openSosScreen", mapOf(
+                                    "message" to message,
+                                    "location" to location,
+                                    "autoSms" to true,
+                                    "backgroundMic" to true,
+                                    "proofLog" to true
+                                ))
+                        }, 5000)
+                    } else {
+                        // 📴 Screen OFF — whisper + vibration
+                        val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            vibrator.vibrate(VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE))
+                        } else {
+                            vibrator.vibrate(300)
+                        }
+
+                        speakTts("I heard something worrying. If you need help, stay still.")
+
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "sos.screen.trigger")
+                                .invokeMethod("openSosScreen", mapOf(
+                                    "message" to message,
+                                    "location" to location,
+                                    "autoSms" to true,
+                                    "backgroundMic" to true,
+                                    "proofLog" to true
+                                ))
+                        }, 8000)
+                    }
+
+                    result.success(true)
+                } else {
+                    result.notImplemented()
+                }
+            }
+
+        // ✅ Request battery optimization exemption
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val packageName = applicationContext.packageName
             val pm = getSystemService(POWER_SERVICE) as PowerManager
@@ -111,7 +202,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // ✅ ElevenLabs streaming playback
     private fun playTtsStream(url: String) {
         val client = OkHttpClient()
         val request = Request.Builder().url(url).build()
@@ -137,29 +227,25 @@ class MainActivity : FlutterActivity() {
             AudioManager.AUDIO_SESSION_ID_GENERATE
         )
 
-        if (player.state != AudioTrack.STATE_INITIALIZED) {
-            return
-        }
+        if (player.state != AudioTrack.STATE_INITIALIZED) return
 
         client.newWebSocket(request, object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                 if (player.playState != AudioTrack.PLAYSTATE_PLAYING) {
                     player.play()
                 }
-                val audioData = bytes.toByteArray()
-                player.write(audioData, 0, audioData.size)
+                player.write(bytes.toByteArray(), 0, bytes.size)
             }
         })
     }
 
-    // ✅ Native Android TTS fallback
     private fun speakTts(text: String) {
         if (tts == null) {
             tts = TextToSpeech(this) { status ->
                 if (status == TextToSpeech.SUCCESS) {
                     val result = tts?.setLanguage(Locale.US)
                     if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                        tts?.language = Locale.ENGLISH // fallback
+                        tts?.language = Locale.ENGLISH
                     }
                     tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "NEURA_TTS")
                 }
@@ -168,6 +254,47 @@ class MainActivity : FlutterActivity() {
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "NEURA_TTS")
         }
     }
+
+    private fun fetchAndSendSosContacts(deviceId: String, token: String, message: String = "🚨 Emergency! I need help.") {
+        val url = "https://byshiladityamallick-neura-smart-assistant.hf.space/safety/list-sos-contacts"
+
+        val client = OkHttpClient()
+        val requestBody = RequestBody.create(
+            "application/json".toMediaTypeOrNull(),
+            """{ "device_id": "$deviceId" }"""
+        )
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.printStackTrace()
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.body?.string()?.let { responseBody ->
+                    try {
+                        val json = JSONObject(responseBody)
+                        val contacts = json.getJSONArray("contacts")
+
+                        val smsManager = SmsManager.getDefault()
+                        for (i in 0 until contacts.length()) {
+                            val contact = contacts.getJSONObject(i)
+                            val phone = contact.getString("phone")
+                            smsManager.sendTextMessage(phone, null, message, null, null)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        })
+    }
+
 
     override fun onDestroy() {
         tts?.stop()
