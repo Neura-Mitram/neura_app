@@ -4,9 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/profile_service.dart';
 import '../services/translation_service.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../services/api_base.dart';
 import 'dart:typed_data';
 import 'package:file_saver/file_saver.dart';
 

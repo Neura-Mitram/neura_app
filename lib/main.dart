@@ -9,7 +9,6 @@ import 'screens/upgrade_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'theme.dart';
 import 'widgets/neura_loader.dart';
-import 'screens/splash_screen.dart'; // 👈 Splash Screen
 import 'screens/report_unsafe_area_screen.dart';
 import 'screens/my_unsafe_reports_screen.dart';
 import 'screens/sos_alert_screen.dart';
