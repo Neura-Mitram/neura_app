@@ -18,13 +18,12 @@ class CommunityReportsScreen extends StatefulWidget {
 class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
   bool isLoading = true;
   bool showMyReports = false;
-  Map<String, Map<String, Map<String, Map<String, List<dynamic>>>>> groupedReports = {};
+  Map<String, Map<String, Map<String, Map<String, List<dynamic>>>>>
+  groupedReports = {};
   String aiSummary = '';
   String searchQuery = '';
   List<Map<String, dynamic>> safeRoute = [];
   String safeRouteTip = '';
-
-
 
   @override
   void initState() {
@@ -55,25 +54,38 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
       final reports = data['grouped'] as Map<String, dynamic>;
 
       groupedReports = reports.map((state, cities) {
-        return MapEntry(state, (cities as Map<String, dynamic>).map((city, areas) {
-          return MapEntry(city, (areas as Map<String, dynamic>).map((area, streets) {
-            return MapEntry(area, (streets as Map<String, dynamic>).map((street, entries) {
-              return MapEntry(street, entries as List<dynamic>);
-            }));
-          }));
-        }));
+        return MapEntry(
+          state,
+          (cities as Map<String, dynamic>).map((city, areas) {
+            return MapEntry(
+              city,
+              (areas as Map<String, dynamic>).map((area, streets) {
+                return MapEntry(
+                  area,
+                  (streets as Map<String, dynamic>).map((street, entries) {
+                    return MapEntry(street, entries as List<dynamic>);
+                  }),
+                );
+              }),
+            );
+          }),
+        );
       });
 
       setState(() => isLoading = false);
     } else {
-      debugPrint("❌ Error fetching community reports: ${res.body}");
+      debugPrint("\u274c Error fetching community reports: \${res.body}");
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Failed to load community reports")),
+        SnackBar(
+          content: Text(
+            "\u274c ${TranslationService.tr("Failed to load community reports")}",
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     }
   }
-
 
   Future<void> _fetchCommunitySummary() async {
     final prefs = await SharedPreferences.getInstance();
@@ -83,9 +95,7 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
     final uri = Uri.parse('$Baseurl/safety/community-summary');
     final res = await http.post(
       uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
+      headers: {'Authorization': 'Bearer $token'},
       body: jsonEncode({"device_id": deviceId}),
     );
 
@@ -105,12 +115,8 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
     final uri = Uri.parse('$Baseurl/safety/safe-route');
     final res = await http.post(
       uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-      body: {
-        'device_id': deviceId.toString(),
-      },
+      headers: {'Authorization': 'Bearer $token'},
+      body: {'device_id': deviceId.toString()},
     );
 
     if (res.statusCode == 200) {
@@ -122,13 +128,14 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
         });
       }
     } else {
-      debugPrint("❌ Error fetching safe route: ${res.body}");
+      debugPrint("\u274c Error fetching safe route: \${res.body}");
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(TranslationService.tr("Community Reports")),
@@ -148,7 +155,7 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
               await _fetchCommunityReports();
               if (!showMyReports) await _fetchCommunitySummary();
             },
-          )
+          ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
@@ -158,10 +165,13 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
               decoration: InputDecoration(
                 hintText: TranslationService.tr("Search city or reason..."),
                 filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(),
+                fillColor: theme.colorScheme.surfaceContainerHighest,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              onChanged: (val) => setState(() => searchQuery = val.toLowerCase()),
+              onChanged: (val) =>
+                  setState(() => searchQuery = val.toLowerCase()),
             ),
           ),
         ),
@@ -171,80 +181,114 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
           : groupedReports.isEmpty
           ? Center(child: Text(TranslationService.tr("No reports found.")))
           : RefreshIndicator(
-        onRefresh: () async {
-          await _fetchCommunityReports();
-          if (!showMyReports) await _fetchCommunitySummary();
-        },
-        child: ListView(
-          children: [
-            const CommunityAlertBanner(),
-            if (aiSummary.isNotEmpty && !showMyReports)
-              Card(
-                margin: const EdgeInsets.all(12),
-                color: Colors.yellow[50],
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text("🧠 $aiSummary", style: const TextStyle(fontSize: 14)),
-                ),
-              ),
-            if (!showMyReports && safeRoute.isNotEmpty)
-              SafeRouteCard(safeRoute: safeRoute, aiTip: safeRouteTip),
-            ...groupedReports.entries.expand<Widget>((stateEntry) {
-              final state = stateEntry.key;
-              return [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text("📍 $state",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                ),
-                ...stateEntry.value.entries.expand<Widget>((cityEntry) {
-                  final city = cityEntry.key;
-                  if (!city.toLowerCase().contains(searchQuery) && searchQuery.isNotEmpty) return [];
-                  return [
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16.0, bottom: 4),
-                      child: Text("└── $city", style: const TextStyle(fontSize: 16)),
-                    ),
-                    ...cityEntry.value.entries.expand<Widget>((areaEntry) {
-                      final area = areaEntry.key;
-                      return [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 24.0, bottom: 4),
-                          child: Text("    ├── $area", style: const TextStyle(fontSize: 15)),
+              onRefresh: () async {
+                await _fetchCommunityReports();
+                if (!showMyReports) await _fetchCommunitySummary();
+              },
+              child: ListView(
+                children: [
+                  const CommunityAlertBanner(),
+                  if (aiSummary.isNotEmpty && !showMyReports)
+                    Card(
+                      margin: const EdgeInsets.all(12),
+                      color: theme.colorScheme.secondaryContainer,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          "\ud83e\udde0 $aiSummary",
+                          style: theme.textTheme.bodyMedium,
                         ),
-                        ...areaEntry.value.entries.map<Widget>((streetEntry) {
-                          final street = streetEntry.key;
-                          final reports = streetEntry.value;
-                          final latestTime = reports
-                              .map((r) => DateTime.parse(r['timestamp']))
-                              .reduce((a, b) => a.isAfter(b) ? a : b);
-                          final formatted = DateFormat('dd MMM, hh:mm a').format(latestTime);
+                      ),
+                    ),
+                  if (!showMyReports && safeRoute.isNotEmpty)
+                    SafeRouteCard(safeRoute: safeRoute, aiTip: safeRouteTip),
+                  ...groupedReports.entries.expand<Widget>((stateEntry) {
+                    final state = stateEntry.key;
+                    return [
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          "\ud83d\udccd $state",
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      ...stateEntry.value.entries.expand<Widget>((cityEntry) {
+                        final city = cityEntry.key;
+                        if (!city.toLowerCase().contains(searchQuery) &&
+                            searchQuery.isNotEmpty)
+                          return [];
+                        return [
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 16.0,
+                              bottom: 4,
+                            ),
+                            child: Text(
+                              "\u2514\u2500\u2500 $city",
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                          ...cityEntry.value.entries.expand<Widget>((
+                            areaEntry,
+                          ) {
+                            final area = areaEntry.key;
+                            return [
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 24.0,
+                                  bottom: 4,
+                                ),
+                                child: Text(
+                                  "    \u251c\u2500\u2500 $area",
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                              ),
+                              ...areaEntry.value.entries.map<Widget>((
+                                streetEntry,
+                              ) {
+                                final street = streetEntry.key;
+                                final reports = streetEntry.value;
+                                final latestTime = reports
+                                    .map((r) => DateTime.parse(r['timestamp']))
+                                    .reduce((a, b) => a.isAfter(b) ? a : b);
+                                final formatted = DateFormat(
+                                  'dd MMM, hh:mm a',
+                                ).format(latestTime);
 
-                          return ExpansionTile(
-                            title: Text("        ├── $street (${reports.length} Reports) – 🕒 $formatted"),
-                            children: reports.map<Widget>((r) {
-                              if (!r['reason'].toString().toLowerCase().contains(searchQuery) &&
-                                  searchQuery.isNotEmpty) return const SizedBox.shrink();
-                              final time = DateFormat('dd MMM, hh:mm a')
-                                  .format(DateTime.parse(r['timestamp']));
-                              return ListTile(
-                                title: Text("🟧 ${r['reason']} – $time"),
-                                subtitle: Text(r['location'] ?? ''),
-                              );
-                            }).toList(),
-                          );
-                        }).toList()
-                      ];
-                    }).toList()
-                  ];
-                }).toList()
-              ];
-            }).toList(),
-          ],
-        ),
-      ),
+                                return ExpansionTile(
+                                  title: Text(
+                                    "        \u251c\u2500\u2500 $street (\${reports.length} Reports) \u2013 \ud83d\udd52 $formatted",
+                                  ),
+                                  children: reports.map<Widget>((r) {
+                                    if (!r['reason']
+                                            .toString()
+                                            .toLowerCase()
+                                            .contains(searchQuery) &&
+                                        searchQuery.isNotEmpty)
+                                      return const SizedBox.shrink();
+                                    final time = DateFormat(
+                                      'dd MMM, hh:mm a',
+                                    ).format(DateTime.parse(r['timestamp']));
+                                    return ListTile(
+                                      title: Text(
+                                        "\ud83d\udfe7 \${r['reason']} \u2013 $time",
+                                      ),
+                                      subtitle: Text(r['location'] ?? ''),
+                                    );
+                                  }).toList(),
+                                );
+                              }).toList(),
+                            ];
+                          }).toList(),
+                        ];
+                      }).toList(),
+                    ];
+                  }).toList(),
+                ],
+              ),
+            ),
     );
   }
-
-
 }

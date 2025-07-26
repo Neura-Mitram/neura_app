@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
@@ -26,12 +25,11 @@ class WsService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("auth_token") ?? "";
 
-    final headers = {
-      "authorization": "Bearer $token",
-      "x-device-id": deviceId,
-    };
+    final headers = {"authorization": "Bearer $token", "x-device-id": deviceId};
 
-    final uri = Uri.parse("wss://byshiladityamallick-neura-smart-assistant.hf.space/ws/audio-stream");
+    final uri = Uri.parse(
+      "wss://byshiladityamallick-neura-smart-assistant.hf.space/ws/audio-stream",
+    );
     _channel = IOWebSocketChannel.connect(uri, headers: headers);
 
     print("🎙️ Connected to /ws/audio-stream");
@@ -44,23 +42,41 @@ class WsService {
     }
 
     _channel!.stream.listen(
-          (event) {
+      (event) {
         final data = jsonDecode(event);
-        print("📨 Received WebSocket message: $data");
+        // print("📨 Received WebSocket message: $data");
+
+        // ✅ NEW: Voice limit reached — stop mic stream
+        if (data['voice_limit_reached'] == true) {
+          // print("🚫 Voice limit reached — stopping mic stream");
+          // ✅ Play warning voice before stopping
+          final url = data['audio_stream_url'];
+          if (url != null && url.toString().startsWith("wss://")) {
+            _playTtsPlayback(url);
+          }
+
+          // ✅ Then stop the mic stream
+          stopStreaming();
+          return; // don't process anything further
+        }
 
         if (data['trigger_sos_force'] == true) {
-          navigatorKey.currentState?.push(MaterialPageRoute(
-            builder: (_) => SosAlertScreen(
-              message: data['sos_message'] ?? 'SOS triggered by keyword.',
-              location: data['location'] ?? '',
-              autoSms: data['auto_sms'] == true,
-              backgroundMic: data['background_mic'] == true,
-              proofLog: data['proof_log'] == true,
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (_) => SosAlertScreen(
+                message: data['sos_message'] ?? 'SOS triggered by keyword.',
+                location: data['location'] ?? '',
+                autoSms: data['auto_sms'] == true,
+                backgroundMic: data['background_mic'] == true,
+                proofLog: data['proof_log'] == true,
+              ),
             ),
-          ));
+          );
         } else if (data['trigger_sos'] == true) {
           _showSosDialog();
-        } else if ((data['reply']?.toString().toLowerCase() ?? '').contains("nearby sos alert")) {
+        } else if ((data['reply']?.toString().toLowerCase() ?? '').contains(
+          "nearby sos alert",
+        )) {
           final audioUrl = data['audio_url'] ?? '';
           if (audioUrl.isNotEmpty && navigatorKey.currentContext != null) {
             ProactiveAlertService.handleNearbySosAlert(
@@ -71,9 +87,12 @@ class WsService {
         }
 
         // ✅ Handle TTS playback
-        if (data['audio_stream_url'] != null && data['audio_stream_url'].toString().startsWith("wss://")) {
+        if (data['audio_stream_url'] != null &&
+            data['audio_stream_url'].toString().startsWith("wss://")) {
           final url = data['audio_stream_url'];
-          final isForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+          final isForeground =
+              WidgetsBinding.instance.lifecycleState ==
+              AppLifecycleState.resumed;
 
           if (isForeground) {
             _playTtsPlayback(url);
@@ -82,19 +101,21 @@ class WsService {
             platform.invokeMethod('playTtsInBackground', {"url": url});
           }
         } else {
-          print("❌ No audio_stream_url — falling back");
+          // print("❌ No audio_stream_url — falling back");
           _playTtsPlaybackFallback("assets/audio/sorry_connection_lost.mp3");
 
           const platform = MethodChannel('neura/tts');
-          platform.invokeMethod('speakNativeTts', {"text": "Sorry, I lost connection"});
+          platform.invokeMethod('speakNativeTts', {
+            "text": "Sorry, I lost connection",
+          });
         }
       },
       onError: (e) {
-        print("❌ WebSocket error: $e");
+        // print("❌ WebSocket error: $e");
         _reconnect(deviceId);
       },
       onDone: () {
-        print("⚠️ WebSocket closed. Reconnecting...");
+        // print("⚠️ WebSocket closed. Reconnecting...");
         _reconnect(deviceId);
       },
       cancelOnError: true,
@@ -113,7 +134,7 @@ class WsService {
 
       final micLevel = _getAmplitudeFromBytes(data);
       if (_player.playing && micLevel > 0.1) {
-        print("🔇 User spoke while Neura was speaking — interrupting TTS");
+        // print("🔇 User spoke while Neura was speaking — interrupting TTS");
         _player.stop();
         _timer?.cancel();
         _timer = null;
@@ -134,6 +155,7 @@ class WsService {
       await _player.stop();
       await _player.setVolume(0.0);
       await _player.setUrl(url);
+      await _player.load();
       await _player.play();
 
       _timer?.cancel();
@@ -156,6 +178,7 @@ class WsService {
     try {
       await _player.stop();
       await _player.setAsset(assetPath);
+      await _player.load();
       await _player.play();
     } catch (e) {
       print("❌ Fallback audio error: $e");
@@ -168,7 +191,9 @@ class WsService {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text("Emergency Alert"),
-        content: const Text("Neura detected a dangerous keyword. Do you want to send an SOS alert now?"),
+        content: const Text(
+          "Neura detected a dangerous keyword. Do you want to send an SOS alert now?",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -181,7 +206,9 @@ class WsService {
             },
             icon: const Icon(Icons.warning),
             label: const Text("Send SOS"),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade800,
+            ),
           ),
         ],
       ),
@@ -212,5 +239,22 @@ class WsService {
       max = max < value.abs() ? value.abs() : max;
     }
     return max / 32768.0;
+  }
+
+  Future<void> playStremOnce(String text, String voiceId, String lang) async {
+    final url =
+        "wss://byshiladityamallick-neura-smart-assistant.hf.space/ws/stream/elevenlabs"
+        "?text=${Uri.encodeComponent(text)}"
+        "&voice_id=$voiceId&lang=$lang";
+
+    try {
+      await _player.stop(); // ✅ stop any existing stream
+      await _player.setUrl(url);
+      await _player.load();
+      await _player.play();
+      print("🎧 TTS playback started for: $text");
+    } catch (e) {
+      print("❌ TTS playback error: $e");
+    }
   }
 }

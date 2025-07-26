@@ -33,11 +33,31 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
   bool _isPlaying = false;
   Duration _currentPosition = Duration.zero;
   Timer? _waveTimer;
+  Timer? _fadeTimer;
   StreamSubscription<Duration>? _positionSub;
 
   List<double> _waveformValues = List.generate(20, (_) => 0);
   final List<double> _staticWaveform = [
-    8, 14, 10, 18, 6, 12, 16, 10, 8, 6, 14, 12, 10, 6, 8, 16, 14, 10, 12, 6
+    8,
+    14,
+    10,
+    18,
+    6,
+    12,
+    16,
+    10,
+    8,
+    6,
+    14,
+    12,
+    10,
+    6,
+    8,
+    16,
+    14,
+    10,
+    12,
+    6,
   ];
 
   @override
@@ -48,18 +68,18 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
       setState(() => _currentPosition = pos);
     });
 
-    _player.playerStateStream.listen((state) {
+    _player.playerStateStream.listen((state) async {
       if (state.processingState == ProcessingState.completed) {
+        await _player.stop();
         _resetPlayback();
-        if (widget.onPlaybackComplete != null) {
-          widget.onPlaybackComplete!();
-        }
+        widget.onPlaybackComplete?.call();
       }
     });
   }
 
   void _resetPlayback() {
     _waveTimer?.cancel();
+    _fadeTimer?.cancel();
     setState(() {
       _isPlaying = false;
       _waveformValues = _staticWaveform;
@@ -70,25 +90,41 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
   @override
   void dispose() {
     _waveTimer?.cancel();
+    _fadeTimer?.cancel();
     _positionSub?.cancel();
     _player.dispose();
     super.dispose();
   }
 
-  void _togglePlayback() async {
+  Future<void> _togglePlayback() async {
     if (_isPlaying) {
       await _player.pause();
       _waveTimer?.cancel();
-    } else {
-      try {
-        await _player.setUrl(widget.audioUrl);
-        await _player.play();
-        _startWaveformAnimation();
-      } catch (_) {
-        // ignore playback errors
-      }
+      setState(() => _isPlaying = false);
+      return;
     }
-    setState(() => _isPlaying = !_isPlaying);
+
+    try {
+      await _player.stop();
+      await _player.setUrl(widget.audioUrl);
+      await _player.setVolume(0.0);
+      await _player.play();
+      _startWaveformAnimation();
+      _fadeInVolume();
+
+      setState(() => _isPlaying = true);
+    } catch (e) {
+      debugPrint("❌ Voice message playback failed: $e");
+    }
+  }
+
+  void _fadeInVolume() {
+    _fadeTimer?.cancel();
+    _fadeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      final vol = (_player.volume + 0.1).clamp(0.0, 1.0);
+      _player.setVolume(vol);
+      if (vol >= 1.0) timer.cancel();
+    });
   }
 
   void _startWaveformAnimation() {
@@ -96,7 +132,10 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
     _waveTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
       if (_isPlaying) {
         setState(() {
-          _waveformValues = List.generate(20, (_) => Random().nextDouble() * 14 + 6);
+          _waveformValues = List.generate(
+            20,
+            (_) => Random().nextDouble() * 14 + 6,
+          );
         });
       }
     });
@@ -130,12 +169,12 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: widget.isHighlighted
                 ? [
-              BoxShadow(
-                color: theme.colorScheme.primary.withOpacity(0.4),
-                blurRadius: 10,
-                spreadRadius: 2,
-              ),
-            ]
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.4),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ]
                 : [],
           ),
           child: Column(
@@ -146,6 +185,10 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                 children: [
                   GestureDetector(
                     onTap: _togglePlayback,
+                    onLongPress: () async {
+                      await _player.stop();
+                      _resetPlayback();
+                    },
                     child: Icon(
                       _isPlaying ? Icons.pause : Icons.play_arrow,
                       color: theme.colorScheme.onPrimary,
@@ -168,8 +211,13 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    _formatDuration(_isPlaying ? _currentPosition : widget.duration),
-                    style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 12),
+                    _formatDuration(
+                      _isPlaying ? _currentPosition : widget.duration,
+                    ),
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimary,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -177,7 +225,10 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.onPrimary.withAlpha(30),
                       borderRadius: BorderRadius.circular(12),
@@ -203,7 +254,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                 color: theme.colorScheme.onSurface.withAlpha(153),
               ),
             ),
-          )
+          ),
       ],
     );
   }

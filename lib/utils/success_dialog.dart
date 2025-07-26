@@ -33,7 +33,7 @@ class SuccessDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Lottie.asset(
-              'assets/neura_success_check.lottie',
+              'assets/neura_success_check.json',
               height: 120,
               repeat: false, // 🔁 Disable infinite loop
               animate: true, // ✅ Play once on load

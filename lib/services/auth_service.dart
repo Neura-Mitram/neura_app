@@ -163,27 +163,6 @@ class AuthService {
     return jsonDecode(response.body); // ✅ Return full JSON payload
   }
 
-  /// Active/Deactive Interpreter Mode
-  static Future<Map<String, dynamic>> toggleInterpreterMode(
-    String deviceId, {
-    required bool enable,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString("auth_token") ?? "";
-
-    final response = await http.post(
-      Uri.parse("$Baseurl/ws/toggle-interpreter-mode"),
-      headers: {"Authorization": "Bearer $token"},
-      body: {"device_id": deviceId, "enable": enable.toString()},
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception("Failed to toggle Interpreter Mode.");
-    }
-  }
-
   /// Update Translate UI as per user
   Future<Map<String, String>> translateUIStrings({
     required List<String> keys,

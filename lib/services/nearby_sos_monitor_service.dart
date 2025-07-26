@@ -45,21 +45,43 @@ class NearbySosMonitorService {
   }
 
   static Future<void> _triggerAlertOverlay() async {
-    if (await Vibration.hasVibrator()) {
-      Vibration.vibrate(duration: 700);
+    try {
+      // 🔔 Haptic alert
+      if (await Vibration.hasVibrator()) {
+        Vibration.vibrate(duration: 700);
+      }
+
+      // 🔊 Audio alert with soft fade-in
+      final player = AudioPlayer();
+      await player.setVolume(0.0);
+      await player.setAsset('assets/sos_soft_alert.mp3');
+      await player.play();
+
+      // ✅ Fade in volume gradually
+      Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        final newVolume = (player.volume + 0.1).clamp(0.0, 1.0);
+        player.setVolume(newVolume);
+        if (newVolume >= 1.0) timer.cancel();
+      });
+
+      // 🔲 Show overlay screen
+      navigatorKey.currentState?.push(
+        PageRouteBuilder(
+          opaque: false,
+          barrierColor: Colors.black.withOpacity(0.3),
+          pageBuilder: (_, __, ___) => const NearbySosScreen(),
+        ),
+      );
+
+      // ✅ Auto dispose after completion
+      player.playbackEventStream
+          .firstWhere(
+            (event) => event.processingState == ProcessingState.completed,
+          )
+          .then((_) => player.dispose());
+    } catch (e) {
+      debugPrint("⚠️ Alert overlay trigger failed: $e");
     }
-
-    final player = AudioPlayer();
-    await player.setAsset('assets/sos_soft_alert.mp3');
-    player.play();
-
-    navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        opaque: false,
-        barrierColor: Colors.black.withOpacity(0.3),
-        pageBuilder: (_, __, ___) => const NearbySosScreen(),
-      ),
-    );
   }
 }
 

@@ -1,0 +1,72 @@
+Neura Privacy Policy
+=====================
+
+Last Updated: July 25, 2025
+
+At Neura, your privacy and safety are our top priorities. This privacy policy explains what data we collect, why we collect it, and how we use it within the Neura app.
+
+1. Information We Collect
+--------------------------
+
+Neura collects only the data required to provide you with a personalized and safe AI assistant experience:
+
+- **Microphone Access**: We use your microphone to stream your voice for real-time interaction. Audio is processed securely and never stored without your explicit consent.
+- **Location Access**: Used for SOS support, travel tips, and local context. Your location data is never shared or sold.
+- **Battery Optimization Access**: Required to keep the assistant responsive even when your phone is idle.
+- **Overlay Permission**: Used to show a floating dot or message while Neura listens or speaks, helping you stay in control.
+- **Usage Access Permission**: Allows Neura to detect which app you're using (e.g., Gmail, Spotify) to offer context-aware support. We only log app name, and never usage frequency or app content.
+
+2. How We Use Your Data
+------------------------
+
+- To personalize voice replies based on emotion and context.
+- To trigger helpful nudges or reminders.
+- To power the wakeword and ambient assistant features.
+- To ensure continuous and proactive support (with user consent).
+
+3. What We Don’t Do
+--------------------
+
+- We do **not** record or store your audio.
+- We do **not** track your app usage frequency or screen time.
+- We do **not** show ads or sell your data to third parties.
+
+4. Data Retention
+------------------
+
+We retain only the data necessary to deliver your experience. All voice streams are ephemeral and discarded after the interaction ends.
+
+Additionally, all stored data — such as mood logs, journal entries, or goals — are automatically deleted based on your tier. This ranges from **7 days to 180 days**, depending on your account level, to ensure privacy by design.
+
+You can delete your preferences or stored data at any time from the app.
+
+5. Security & Transparency
+---------------------------
+
+We use **end-to-end encryption** to secure all sensitive data, including voice interactions and personal logs.
+
+Your data is stored in a highly secure PostgreSQL database hosted on **Amazon AWS infrastructure**, with strict access controls.
+
+Neura is committed to transparency — our core assistant logic and integrations are available via open-source platforms on **Hugging Face**, **GitHub**, and more.
+
+To learn more, please visit our official website: **https://neuramitram.space**
+
+6. Your Choices
+----------------
+
+- You may revoke any permission from system settings at any time.
+- You can disable ambient tracking or voice streaming from the app settings.
+- You can view, modify, or delete your profile data at any time.
+
+7. Contact Us
+--------------
+
+For privacy-related concerns or questions, contact:
+
+**Byshiladitya Mallick**  
+Email: support@neuramitram.space  
+Instagram: [@byshiladityamallick](https://instagram.com/byshiladityamallick)
+
+---
+
+This policy may be updated to reflect improvements in how we protect your data.

@@ -39,12 +39,17 @@ class _ReportUnsafeAreaScreenState extends State<ReportUnsafeAreaScreen> {
       final deviceId = prefs.getInt('device_id');
 
       if (token == null || deviceId == null) {
-        setState(() => statusMessage = TranslationService.tr("⚠️ Missing token or device ID."));
+        setState(
+          () => statusMessage = TranslationService.tr(
+            "⚠️ Missing token or device ID.",
+          ),
+        );
         return;
       }
 
       final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+        desiredAccuracy: LocationAccuracy.high,
+      );
 
       final now = DateTime.now().toIso8601String();
 
@@ -84,17 +89,29 @@ class _ReportUnsafeAreaScreenState extends State<ReportUnsafeAreaScreen> {
       );
 
       if (reportRes.statusCode == 200) {
-        setState(() => statusMessage = TranslationService.tr("✅ Report submitted successfully."));
+        setState(
+          () => statusMessage = TranslationService.tr(
+            "✅ Report submitted successfully.",
+          ),
+        );
         _controller.clear();
         Future.delayed(const Duration(seconds: 2), () {
           Navigator.pop(context);
         });
       } else {
-        setState(() => statusMessage = TranslationService.tr("❌ Failed to submit report."));
+        setState(
+          () => statusMessage = TranslationService.tr(
+            "❌ Failed to submit report.",
+          ),
+        );
       }
     } catch (e) {
-      setState(() => statusMessage = TranslationService.tr("❌ Error: {error}").replaceAll("{error}", "$e"));
-          } finally {
+      setState(
+        () => statusMessage = TranslationService.tr(
+          "❌ Error: {error}",
+        ).replaceAll("{error}", "$e"),
+      );
+    } finally {
       setState(() => isSubmitting = false);
     }
   }
@@ -134,16 +151,23 @@ class _ReportUnsafeAreaScreenState extends State<ReportUnsafeAreaScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red.shade900,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
               ),
             ),
             if (statusMessage != null) ...[
               const SizedBox(height: 16),
               Text(
                 statusMessage!,
-                style: TextStyle(color: statusMessage!.contains("✅") ? Colors.green : Colors.red),
+                style: TextStyle(
+                  color: statusMessage!.contains("✅")
+                      ? Colors.green
+                      : Colors.red,
+                ),
               ),
-            ]
+            ],
           ],
         ),
       ),

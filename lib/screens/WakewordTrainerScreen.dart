@@ -11,6 +11,7 @@ import 'package:lottie/lottie.dart';
 import 'package:vibration/vibration.dart';
 import '../services/translation_service.dart';
 import 'package:flutter/services.dart';
+import '../widgets/setup_progress_stepper.dart';
 
 class WakewordTrainerScreen extends StatefulWidget {
   const WakewordTrainerScreen({super.key});
@@ -66,14 +67,12 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
     try {
       if (deviceId == null) throw Exception("Missing device ID");
 
-      // ✅ Upload audio & train
       final backendModelPath = await AuthService().uploadWakewordSamples(
         deviceId: deviceId,
         audioSamples: recordedSamples,
       );
       debugPrint("Backend model path: $backendModelPath");
 
-      // ✅ Download and save locally
       final localModelPath = await AuthService().downloadWakewordModel(
         deviceId,
       );
@@ -82,24 +81,28 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
       }
 
       await prefs.setBool('wakeword_completed', true);
+      await prefs.setBool('playon_Completed_Setup', false);
       await prefs.setString('active_mode', "ambient");
 
-      // ✅ Show confirmation dialog
       if (context.mounted) {
+        final theme = Theme.of(context);
         await showDialog(
           context: context,
           builder: (ctx) => Dialog(
-            backgroundColor: Colors.black,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.dialogBackgroundColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Lottie.asset(
-                    'assets/neura_success_check.lottie',
+                    'assets/neura_success_check.json',
                     height: 120,
                     repeat: false,
                     animate: true,
@@ -107,10 +110,8 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
                   const SizedBox(height: 20),
                   Text(
                     TranslationService.tr("Wakeword Trained!"),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -119,14 +120,16 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
                     TranslationService.tr(
                       "Your assistant can now recognize your voice 🧠",
                     ),
-                    style: const TextStyle(fontSize: 16, color: Colors.white70),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      foregroundColor: Colors.black,
-                      backgroundColor: Colors.white,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                      backgroundColor: theme.colorScheme.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
@@ -136,12 +139,9 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
                       ),
                     ),
                     onPressed: () {
-                      Navigator.pop(ctx); // close dialog first
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/chat',
-                      ); // then navigate
-                      startWakewordService(); // ✅ This starts background wakeword listening
+                      Navigator.pop(ctx);
+                      Navigator.pushReplacementNamed(context, '/chat');
+                      startWakewordService();
                     },
                     child: Text(TranslationService.tr("Continue")),
                   ),
@@ -150,16 +150,21 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
             ),
           ),
         );
-
         if (await Vibration.hasVibrator()) {
           Vibration.vibrate(duration: 50);
         }
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Upload failed: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              TranslationService.tr(
+                "Upload failed: {error}",
+              ).replaceFirst("{error}", "$e"),
+            ),
+          ),
+        );
       }
     } finally {
       setState(() => isUploading = false);
@@ -185,48 +190,63 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(TranslationService.tr("Train Wakeword"))),
-      body: isUploading
-          ? NeuraLoader(
-              message: TranslationService.tr("Uploading your voice samples..."),
-            )
-          : Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 24),
-                  Text(
-                    TranslationService.tr(
-                      "Say your assistant's name (\${3 - currentStep} left)",
+      body: Column(
+        children: [
+          // 🟢 Progress Stepper on top
+          const SetupProgressStepper(currentStep: SetupStep.wakeword),
+          const SizedBox(height: 12),
+
+          // 🔄 Conditional content based on uploading state
+          Expanded(
+            child: isUploading
+                ? NeuraLoader(
+                    message: TranslationService.tr(
+                      "Uploading your voice samples...",
                     ),
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 20),
-                  AnimatedWaveformBars(isRecording: isRecording),
-                  const SizedBox(height: 40),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.mic),
-                    onPressed: isRecording || currentStep >= 3
-                        ? null
-                        : _recordSample,
-                    label: Text(
-                      isRecording
-                          ? TranslationService.tr("Recording...")
-                          : TranslationService.tr(
-                              "Record Sample \${currentStep + 1}",
+                  )
+                : Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 24),
+                        Text(
+                          TranslationService.tr(
+                            "Say your assistant's name (\${3 - currentStep} left)",
+                          ),
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 20),
+                        AnimatedWaveformBars(isRecording: isRecording),
+                        const SizedBox(height: 40),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.mic),
+                          onPressed: isRecording || currentStep >= 3
+                              ? null
+                              : _recordSample,
+                          label: Text(
+                            isRecording
+                                ? TranslationService.tr("Recording...")
+                                : TranslationService.tr(
+                                    "Record Sample \${currentStep + 1}",
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+                        if (currentStep == 3)
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.upload),
+                            onPressed: _submitSamples,
+                            label: Text(
+                              TranslationService.tr("Upload Samples"),
                             ),
+                          ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 40),
-                  if (currentStep == 3)
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.upload),
-                      onPressed: _submitSamples,
-                      label: Text(TranslationService.tr("Upload Samples")),
-                    ),
-                ],
-              ),
-            ),
+          ),
+        ],
+      ),
     );
   }
 }

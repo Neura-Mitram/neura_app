@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'manage_plan_screen.dart';
+import 'manage_subscription_screen.dart';
 import 'login_screen.dart';
 import 'insights_screen.dart';
+import 'memory_screen.dart';
 import '../services/community_alert_banner_service.dart';
 import '../services/translation_service.dart';
 import '../utils/restart_utils.dart';
 import 'package:vibration/vibration.dart';
 import '../services/auth_service.dart';
+import '../services/profile_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,6 +24,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String aiName = "Neura";
   String voice = "female";
   String tier = "free";
+  String userLastActive = "";
+  String modelVersion = "v2.0";
+  bool memoryEnabled = false;
+  String personalityMode = "default";
 
   final List<Map<String, String>> languages = [
     {'code': 'ar', 'label': 'العربية'},
@@ -107,11 +115,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final prefs = await SharedPreferences.getInstance();
+    final profile = await fetchProfileSummary();
     setState(() {
-      aiName = prefs.getString('ai_name') ?? "Neura";
-      voice = prefs.getString('voice') ?? "female";
-      tier = prefs.getString('tier') ?? "free";
+      aiName = profile["ai_name"] ?? "Neura";
+      voice = profile["voice"] ?? "female";
+      tier = profile["tier"] ?? "free";
+      userLastActive = profile["last_active_at"] ?? "";
+      modelVersion = profile["model_version"] ?? "v2.0";
+      memoryEnabled = profile["memory_enabled"] ?? false;
+      personalityMode = profile["personality_mode"] ?? "default";
     });
   }
 
@@ -242,7 +254,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final rtlLangs = ['ar', 'he', 'fa', 'ur'];
                   final willBeRtl = rtlLangs.contains(lang['code']);
                   final wasRtl =
-                      Directionality.of(context) == TextDirection.rtl;
+                      Directionality.of(context) == TextDirection.RTL;
 
                   if (willBeRtl != wasRtl) {
                     RestartWidget.restartApp(context);
@@ -287,6 +299,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  String _formatDateTime(String? isoString) {
+    if (isoString == null) return "-";
+    final dt = DateTime.tryParse(isoString);
+    return dt != null ? DateFormat.yMMMd().add_jm().format(dt) : "-";
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -298,6 +316,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           children: [
             const CommunityAlertBanner(),
+
+            // Avatar Card
             _card(
               child: Row(
                 children: [
@@ -325,6 +345,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+
+            // Sync & Model Card
+            _card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "${TranslationService.tr("Last Sync")}: ${_formatDateTime(userLastActive)}",
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "${TranslationService.tr("AI Model Version")}: ${modelVersion.toUpperCase()}",
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+
+            // Memory + Personality Card
+            _card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "${TranslationService.tr("Memory Enabled")}: ${memoryEnabled ? "Yes" : "No"}",
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "${TranslationService.tr("Personality Mode")}: ${personalityMode.toUpperCase()}",
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+
+            // Language Card
             _card(
               child: ListTile(
                 leading: const Icon(Icons.language),
@@ -337,6 +395,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
+            // Voice Card
             _card(
               child: Row(
                 children: [
@@ -349,6 +408,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+
+            // Current Plan
             _card(
               child: Row(
                 children: [
@@ -368,13 +429,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+
+            // Subscription
             _card(
               child: ElevatedButton.icon(
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const ManagePlanScreen(),
+                      builder: (context) => const ManageSubscriptionScreen(),
                     ),
                   );
                 },
@@ -386,19 +449,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
+
+            // Memory Details
             _card(
               child: ElevatedButton.icon(
-                onPressed: _logout,
-                icon: const Icon(Icons.logout),
-                label: Text(TranslationService.tr("Log Out")),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const MemoryScreen(), // 👈 replace with your screen
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.memory),
+                label: Text(TranslationService.tr("Memory Settings")),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   minimumSize: const Size.fromHeight(50),
                 ),
               ),
             ),
+
+            // Insights
             _card(
               child: ElevatedButton.icon(
                 onPressed: () {
@@ -412,6 +485,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: const Icon(Icons.bar_chart),
                 label: Text(TranslationService.tr("View Insights")),
                 style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  minimumSize: const Size.fromHeight(50),
+                ),
+              ),
+            ),
+
+            // Logout
+            _card(
+              child: ElevatedButton.icon(
+                onPressed: _logout,
+                icon: const Icon(Icons.logout),
+                label: Text(TranslationService.tr("Log Out")),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   minimumSize: const Size.fromHeight(50),
                 ),

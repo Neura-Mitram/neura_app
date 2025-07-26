@@ -15,7 +15,7 @@ class NeuraLoader extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Lottie.asset(
-              'assets/neura_voicewave_loader.lottie',
+              'assets/neura_voicewave_loader.json',
               height: 200,
               repeat: true,
             ),

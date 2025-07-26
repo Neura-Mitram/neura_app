@@ -30,6 +30,15 @@ class WakewordForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // ✅ PREVENT START IF ONBOARDING IS NOT COMPLETE
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val onboardingDone = prefs.getBoolean("flutter.onboarding_completed", false)
+        if (!onboardingDone) {
+            stopSelf()
+            return
+        }
+
         createNotificationChannel()
 
         // ✅ Acquire WakeLock for stability

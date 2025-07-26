@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:neura_app/controllers/chat_controller.dart';
-import 'package:neura_app/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibration/vibration.dart';
 
+import '../widgets/chat_summary_cards.dart';
 import '../models/chat_message.dart';
 import '../controllers/chat_provider.dart';
 import '../widgets/avatar_widget.dart';
@@ -17,6 +19,9 @@ import '../services/cluster_alert_service.dart';
 import '../services/community_alert_banner_service.dart';
 import '../services/ws_service.dart';
 import '../services/translation_service.dart';
+import '../services/profile_service.dart';
+import '../services/chat_api.dart';
+import 'package:flutter/services.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String deviceId;
@@ -35,18 +40,217 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
   int _recordingSeconds = 0;
 
   bool sosLaunched = false;
+  bool memoryEnabled = true;
+
+  bool isPrivateMode = false;
+  bool privateLoading = true;
+  int remainingPrivateMins = 0;
+  Timer? privateModeTimer;
 
   @override
   void initState() {
     super.initState();
+    _setupNativeSummaryListener();
+    _handleFirstTimeLanding();
+    _loadMemoryStatus();
+    _fetchPrivateMode();
     ref
         .read(chatControllerProvider(widget.deviceId).notifier)
         .loadPreferences();
-    // ✅ Start ambient stream if mode is ambient
     ref
         .read(chatControllerProvider(widget.deviceId).notifier)
         .startAmbientIfNeeded();
     _startClusterPingChecker();
+  }
+
+  void _setupNativeSummaryListener() {
+    const MethodChannel summaryChannel = MethodChannel('neura/chat/summary');
+
+    summaryChannel.setMethodCallHandler((call) async {
+      if (call.method == 'pushChatSummaries') {
+        final raw = call.arguments;
+        if (raw != null && raw is String) {
+          final List<dynamic> data = jsonDecode(raw);
+          final controller = ref.read(
+            chatControllerProvider(widget.deviceId).notifier,
+          );
+
+          for (final item in data) {
+            if (item is Map || item is Map<String, dynamic>) {
+              final type = item['type'] ?? 'nudge';
+              final emoji = item['emoji'] ?? '';
+              final text = item['text'] ?? '';
+              final timestamp =
+                  item['timestamp'] ?? DateTime.now().millisecondsSinceEpoch;
+
+              controller.addSummaryCard(
+                type: type,
+                emoji: emoji,
+                text: text,
+                timestamp: DateTime.fromMillisecondsSinceEpoch(timestamp),
+              );
+            }
+          }
+        }
+      }
+    });
+  }
+
+  void _handleFirstTimeLanding() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasPlayed = prefs.getBool('playon_Completed_Setup') ?? false;
+
+    if (hasPlayed) return; // ✅ already played once
+
+    final lang = prefs.getString('preferred_lang') ?? 'en';
+    final voice = prefs.getString('voice') ?? 'female';
+    final aiName = prefs.getString('ai_name') ?? 'Neura';
+    final voiceId = voice == 'male'
+        ? 'EXAVITQu4vr4xnSDxMaL'
+        : 'onwK4e9ZLuTAKqWW03F9';
+    final welcomeText = TranslationService.tr(
+      "Neura’s activated. I’m $aiName, with you, always.",
+    );
+
+    // ✅ Show Snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(welcomeText),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+
+    // ✅ Play Welcome Voice
+    try {
+      await wsService.playStremOnce(welcomeText, voiceId, lang);
+    } catch (e) {
+      debugPrint("🎧 Playback error: $e");
+    }
+
+    await prefs.setBool('playon_Completed_Setup', true); // ✅ set it after play
+  }
+
+  Future<void> _fetchPrivateMode() async {
+    try {
+      final status = await getPrivateModeStatus(widget.deviceId);
+      if (mounted) {
+        setState(() {
+          isPrivateMode = status['is_private'] as bool;
+          remainingPrivateMins = status['time_remaining'] as int? ?? 0;
+          privateLoading = false;
+        });
+        if (isPrivateMode && remainingPrivateMins > 0) {
+          _startPrivateModeTimer();
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => privateLoading = false);
+    }
+  }
+
+  void _startPrivateModeTimer() {
+    privateModeTimer?.cancel();
+    privateModeTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (remainingPrivateMins > 0) {
+        setState(() => remainingPrivateMins--);
+      } else {
+        timer.cancel();
+        setState(() => isPrivateMode = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationService.tr("Private mode expired")),
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _togglePrivateMode() async {
+    try {
+      final updated = await togglePrivateMode(widget.deviceId, !isPrivateMode);
+      if (mounted) {
+        setState(() {
+          isPrivateMode = updated;
+          remainingPrivateMins = updated ? 30 : 0;
+        });
+        if (await Vibration.hasVibrator()) {
+          Vibration.vibrate(duration: 80);
+        }
+        if (updated) _startPrivateModeTimer();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              updated
+                  ? TranslationService.tr("Private mode enabled.")
+                  : TranslationService.tr("Private mode disabled."),
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            TranslationService.tr("Failed to update Private Mode."),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadMemoryStatus() async {
+    final status = await getCurrentMemoryStatus();
+    if (mounted) {
+      setState(() => memoryEnabled = status);
+    }
+  }
+
+  Future<void> _toggleMemory(bool value) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(
+          value
+              ? TranslationService.tr("Enable Memory?")
+              : TranslationService.tr("Disable Memory?"),
+        ),
+        content: Text(
+          value
+              ? TranslationService.tr(
+                  "Memory is now ON. Neura will start remembering your conversations to help you better.",
+                )
+              : TranslationService.tr(
+                  "Memory is now OFF. Neura will not remember anything from your conversations moving forward.",
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(TranslationService.tr("Cancel")),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(TranslationService.tr("OK")),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final updated = await toggleMemory(enabled: value);
+      if (updated) {
+        setState(() => memoryEnabled = value);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              value
+                  ? TranslationService.tr("Memory enabled.")
+                  : TranslationService.tr("Memory disabled."),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _startRecording() async {
@@ -102,11 +306,9 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
     ChatController notifier,
   ) {
     final theme = Theme.of(context);
-    // final alignment = msg.isUser ? Alignment.centerRight : Alignment.centerLeft;
 
+    // 🎙️ Voice Message
     if (msg.isVoice) {
-      // If upload failed, show retry chip
-      // Otherwise, normal bubble
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
@@ -117,7 +319,7 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
             if (!msg.isUser) ...[
               const CircleAvatar(
                 radius: 16,
-                backgroundImage: AssetImage('assets/neura_logo.png'),
+                backgroundImage: AssetImage('assets/splash/neura_logo.png'),
               ),
               const SizedBox(width: 8),
             ],
@@ -131,9 +333,7 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                     timestamp: msg.timestamp,
                     showDateHeader: showDateHeader,
                     emotion: msg.emotion,
-                    onPlaybackComplete: () {
-                      notifier.markVoicePlaybackDone();
-                    },
+                    onPlaybackComplete: () => notifier.markVoicePlaybackDone(),
                     isHighlighted:
                         msg.isUser &&
                         msg.voiceUrl != null &&
@@ -144,8 +344,6 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                             ) ==
                             msg,
                   ),
-
-                  // 👇 Status badge below voice bubble
                   if (msg.isUser)
                     Padding(
                       padding: const EdgeInsets.only(top: 4, left: 4),
@@ -154,7 +352,7 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                         children: [
                           if (msg.isPending == true)
                             Text(
-                              TranslationService.tr("Sending..."),
+                              "Sending...",
                               style: TextStyle(
                                 fontSize: 10,
                                 color: Colors.grey,
@@ -162,15 +360,14 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                             ),
                           if (msg.isFailed == true)
                             Text(
-                              TranslationService.tr("❌ Failed"),
+                              "❌ Failed",
                               style: TextStyle(fontSize: 10, color: Colors.red),
                             ),
                           if (msg.isPending == false && msg.isFailed != true)
                             Text(
-                              TranslationService.tr("Sent ✅"),
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.green,
+                              "Sent ✅",
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.primary,
                               ),
                             ),
                         ],
@@ -189,7 +386,79 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
       );
-    } else {
+    }
+    // 🧠 Summary Card
+    else if (!msg.isUser &&
+        msg.summaryType != null &&
+        msg.summaryData != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: ChatSummaryCards(
+          type: msg.summaryType!,
+          data: msg.summaryData!,
+          deviceId: widget.deviceId,
+        ),
+      );
+    }
+    // 💡 Prompt/Nudge bubble
+    // 💡 Auto-playing voice nudges
+    else if (!msg.isUser && msg.isPrompt == true && msg.voiceUrl != null) {
+      if (!notifier.muteNudges) {
+        notifier.enqueueNudge(msg);
+      }
+      final shouldHighlight = notifier.currentlyPlayingUrl == null;
+
+      if (shouldHighlight) {
+        notifier.currentlyPlayingUrl = msg.voiceUrl; // prevent re-trigger
+        notifier.player.setUrl(msg.voiceUrl!).then((_) {
+          notifier.player.play();
+        });
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            const CircleAvatar(
+              radius: 16,
+              backgroundImage: AssetImage('assets/splash/neura_logo.png'),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      msg.text ?? '',
+                      style: const TextStyle(
+                        fontStyle: FontStyle.italic,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      _formatTimestamp(msg.timestamp),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    // 💬 Normal Text Message
+    else {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -208,16 +477,13 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                 if (!msg.isUser) ...[
                   const CircleAvatar(
                     radius: 16,
-                    backgroundImage: AssetImage('assets/neura_logo.png'),
+                    backgroundImage: AssetImage('assets/splash/neura_logo.png'),
                   ),
                   const SizedBox(width: 8),
                 ],
                 Flexible(
                   child: GestureDetector(
-                    onLongPress: () => _showReactionBar(
-                      context,
-                      msg,
-                    ), // 👈 triggers emoji menu
+                    onLongPress: () => _showReactionBar(context, msg),
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -232,13 +498,19 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                           Text(msg.text ?? ''),
                           if (!msg.isUser && msg.emotion != null)
                             Text(
-                              TranslationService.tr(
-                                "Emotion: {emotion}",
-                              ).replaceAll("{emotion}", msg.emotion!),
+                              "Emotion: ${msg.emotion}",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
                             ),
-                          Text(_formatTimestamp(msg.timestamp)),
-
-                          // ✅ Message Status
+                          Text(
+                            _formatTimestamp(msg.timestamp),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          ),
                           if (msg.isUser)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
@@ -247,7 +519,7 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                                 children: [
                                   if (msg.isPending == true)
                                     Text(
-                                      TranslationService.tr("Sending..."),
+                                      "Sending...",
                                       style: TextStyle(
                                         fontSize: 10,
                                         color: Colors.grey,
@@ -255,7 +527,7 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                                     ),
                                   if (msg.isFailed == true)
                                     Text(
-                                      TranslationService.tr("❌ Failed"),
+                                      "❌ Failed",
                                       style: TextStyle(
                                         fontSize: 10,
                                         color: Colors.red,
@@ -264,17 +536,15 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                                   if (msg.isPending == false &&
                                       msg.isFailed != true)
                                     Text(
-                                      TranslationService.tr("Sent ✅"),
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.green,
-                                      ),
+                                      "Sent ✅",
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: theme.colorScheme.primary,
+                                          ),
                                     ),
                                 ],
                               ),
                             ),
-
-                          // ✅ Reaction Emoji
                           if (msg.reaction != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
@@ -288,7 +558,6 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
                 ),
-
                 if (msg.isUser) ...[
                   const SizedBox(width: 8),
                   const CircleAvatar(
@@ -398,13 +667,62 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
 
   String _dateHeader(DateTime dt) {
     final now = DateTime.now();
-    if (DateUtils.isSameDay(dt, now)) return 'Today';
+    if (DateUtils.isSameDay(dt, now)) return TranslationService.tr("Today");
     return "${dt.day}/${dt.month}/${dt.year}";
   }
 
   bool _isSameDay(DateTime? a, DateTime? b) {
     if (a == null || b == null) return false;
     return DateUtils.isSameDay(a, b);
+  }
+
+  Widget _tierLimitWarningBanner(int used, int total) {
+    final ratio = used / total;
+    if (ratio >= 1.0) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        color: Colors.red.shade100,
+        child: Row(
+          children: [
+            const Icon(Icons.warning, color: Colors.red),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                TranslationService.tr(
+                  "You've reached your monthly limit. Upgrade to continue chatting.",
+                ),
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pushNamed(context, '/upgrade'),
+              child: Text(TranslationService.tr("Upgrade")),
+            ),
+          ],
+        ),
+      );
+    } else if (ratio >= 0.9) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        color: Colors.orange.shade100,
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                TranslationService.tr(
+                  "You're nearing your monthly usage limit. Consider upgrading.",
+                ),
+                style: TextStyle(color: Colors.black87),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
   }
 
   @override
@@ -419,7 +737,7 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> callInterpreter(ChatController chat) async {
     try {
       final isCurrentlyOn = chat.activeMode == "interpreter";
-      final result = await AuthService.toggleInterpreterMode(
+      final result = await toggleInterpreterMode(
         widget.deviceId,
         enable: !isCurrentlyOn,
       );
@@ -476,15 +794,27 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(
-          "${chat.aiName} ${TranslationService.tr("Smart Assistant")}",
-        ),
+        title: Text("${chat.aiName} ${TranslationService.tr("Mano-Mitram")}"),
         actions: [
+          IconButton(
+            icon: Icon(
+              chat.muteNudges ? Icons.volume_off : Icons.volume_up,
+              color: Colors.grey.shade700,
+            ),
+            tooltip: chat.muteNudges
+                ? TranslationService.tr("Unmute Nudges")
+                : TranslationService.tr("Mute Nudges"),
+            onPressed: () {
+              notifier.toggleNudgeMute();
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
               notifier.disposeAudio();
-              if (mounted) Navigator.pushReplacementNamed(context, '/');
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.clear();
+              if (mounted) Navigator.pushReplacementNamed(context, '/login');
             },
           ),
         ],
@@ -532,17 +862,23 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                         lastBot.messagesRemaining != null) {
                       final used = lastBot.messagesUsed!;
                       final total = used + lastBot.messagesRemaining!;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: TierUsageBar(used: used, total: total),
+                      return Column(
+                        children: [
+                          _tierLimitWarningBanner(used, total),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: TierUsageBar(used: used, total: total),
+                          ),
+                        ],
                       );
                     }
                     return const SizedBox.shrink();
                   },
                 ),
+
               // Input field
               Container(
                 margin: const EdgeInsets.all(12),
@@ -551,7 +887,7 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(28),
                 ),
                 child: Row(
@@ -569,10 +905,46 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                     GestureDetector(
                       onTap: () {
                         final text = _controller.text.trim();
+                        final lastBot = chat.messages.lastWhere(
+                          (m) => !m.isUser,
+                          orElse: () => ChatMessage(isUser: false),
+                        );
+
+                        if (lastBot.messagesRemaining != null &&
+                            lastBot.messagesRemaining! <= 0) {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: Text(
+                                TranslationService.tr("Limit Reached"),
+                              ),
+                              content: Text(
+                                TranslationService.tr(
+                                  "You've hit your monthly usage limit. Upgrade to continue.",
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: Text(TranslationService.tr("Cancel")),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    Navigator.pushNamed(context, '/upgrade');
+                                  },
+                                  child: const Text("Upgrade"),
+                                ),
+                              ],
+                            ),
+                          );
+                          return; // Prevent sending
+                        }
+
                         if (text.isNotEmpty) {
                           notifier.sendTextMessage(text);
                           _controller.clear();
-                          // Auto-scroll after sending
+                          // Auto-scroll
                           Future.delayed(const Duration(milliseconds: 500), () {
                             if (mounted) {
                               _scrollController.animateTo(
@@ -602,7 +974,9 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: chat.isRecording ? Colors.red : theme.primaryColor,
+                  color: chat.isRecording
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.primary,
                 ),
                 child: const Icon(Icons.mic, color: Colors.white, size: 30),
               ),
@@ -638,6 +1012,37 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
                 ],
               ),
             ),
+          // 🟨 Floating memory toggle on bottom-left
+          Positioned(
+            bottom: 20,
+            left: 20,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 500),
+              opacity:
+                  1.0, // always visible; change this if you want conditional fade
+              child: FloatingActionButton.small(
+                onPressed: () async {
+                  await _toggleMemory(
+                    !memoryEnabled,
+                  ); // should handle confirmation + state update
+                },
+                backgroundColor: memoryEnabled ? Colors.green : Colors.grey,
+                tooltip: TranslationService.tr("Toggle Memory"),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
+                  child: Icon(
+                    memoryEnabled ? Icons.memory : Icons.memory_outlined,
+                    key: ValueKey(
+                      memoryEnabled,
+                    ), // this triggers AnimatedSwitcher
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
           // Profile button
           Positioned(
             top: 20,
@@ -681,12 +1086,39 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
               ),
               label: Text(
                 chat.activeMode == "interpreter"
-                    ? "Interpreter ON"
-                    : "Interpreter OFF",
+                    ? TranslationService.tr("Interpreter ON")
+                    : TranslationService.tr("Interpreter OFF"),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: Colors.white,
+                ),
               ),
               backgroundColor: chat.activeMode == "interpreter"
-                  ? Colors.blueAccent
-                  : Colors.grey,
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.surfaceContainerHighest,
+            ),
+          ),
+          // 🛡️ Floating Private Mode toggle (top-left)
+          Positioned(
+            top: 80,
+            left: 20,
+            child: FloatingActionButton.small(
+              onPressed: _togglePrivateMode,
+              backgroundColor: isPrivateMode ? Colors.red : Colors.grey,
+              tooltip: TranslationService.tr("Private Mode"),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isPrivateMode ? Icons.lock : Icons.lock_open,
+                    color: Colors.white,
+                  ),
+                  if (isPrivateMode && remainingPrivateMins > 0)
+                    Text(
+                      "$remainingPrivateMins m",
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                    ),
+                ],
+              ),
             ),
           ),
         ],

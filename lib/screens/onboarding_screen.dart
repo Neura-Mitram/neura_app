@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
@@ -6,6 +7,8 @@ import '../services/translation_service.dart';
 import '../utils/restart_utils.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../widgets/setup_progress_stepper.dart';
+import 'package:flutter/services.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -23,6 +26,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   String selectedLangCode = 'en'; // default
   bool permissionsAccepted = false;
   bool _deniedOnce = false;
+
+  static const platformPermission = MethodChannel('com.neura/permissions');
+  static const platformBattery = MethodChannel('com.neura/battery');
+  bool smartTrackingEnabled = true; // default to ON
 
   final List<Map<String, String>> languages = [
     {'code': 'ar', 'label': 'العربية'},
@@ -153,7 +160,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
       await prefs.setString('ai_name', aiName);
       await prefs.setString('voice', selectedVoice);
-      await prefs.setBool('onboarding_completed', true);
+      await prefs.setBool('smart_tracking_enabled', smartTrackingEnabled);
 
       // ✅ Step 1: Show instruction as toast/snackbar
       final instructionText = response['wakeword_instruction'];
@@ -172,10 +179,30 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
         // ✅ Step 2: Play audio stream
         try {
-          final player = AudioPlayer(); // from just_audio
-          await player.setUrl(audioStreamUrl);
-          await player.play(); // async wait until done
-          await player.dispose();
+          final player = AudioPlayer();
+          try {
+            await player.setVolume(0.0); // start muted
+            await player.setUrl(audioStreamUrl);
+            await player.play();
+
+            // 🔊 Fade in volume
+            Timer.periodic(const Duration(milliseconds: 100), (timer) {
+              final newVolume = (player.volume + 0.1).clamp(0.0, 1.0);
+              player.setVolume(newVolume);
+              if (newVolume >= 1.0) {
+                timer.cancel();
+              }
+            });
+
+            // ✅ Wait for stream to finish
+            await player.playbackEventStream.firstWhere(
+              (event) => event.processingState == ProcessingState.completed,
+            );
+          } catch (e) {
+            debugPrint("🎧 Failed to play audio stream: $e");
+          } finally {
+            await player.dispose();
+          }
 
           // ✅ Step 3: After playback, show success dialog
           if (context.mounted) {
@@ -188,6 +215,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 Navigator.of(context).pop(); // close dialog
                 await Future.delayed(const Duration(seconds: 1));
                 if (context.mounted) {
+                  await prefs.setBool('onboarding_completed', true);
                   Navigator.pushReplacementNamed(context, '/sos-contact');
                 }
               },
@@ -205,6 +233,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               onButtonTap: () async {
                 Navigator.of(context).pop();
                 if (context.mounted) {
+                  await prefs.setBool('onboarding_completed', true);
                   Navigator.pushReplacementNamed(context, '/sos-contact');
                 }
               },
@@ -229,25 +258,104 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     if (context.mounted) {
-      Navigator.pushReplacementNamed(context, '/');
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
   Future<void> requestNeuraPermissions() async {
+    // Step 1: Request microphone, location, overlay (but NOT battery yet)
     final statuses = await [
       Permission.microphone,
       Permission.location,
-      Permission.sms,
-      Permission.phone,
-      Permission.ignoreBatteryOptimizations,
       Permission.systemAlertWindow,
     ].request();
 
-    final granted = statuses.values.every((s) => s.isGranted || s.isLimited);
+    final basicGranted = statuses.values.every(
+      (s) => s.isGranted || s.isLimited,
+    );
+    final usageGranted = await hasUsageAccess();
+    print("🧪 Usage access granted: $usageGranted");
+
+    // Step 2: Show usage access prompt if missing
+    if (!usageGranted && context.mounted) {
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Usage Access Required"),
+          content: const Text(
+            "To make Neura truly smart, we need permission to detect which app you're using. "
+            "This helps Neura assist based on your activity (e.g., Spotify, Gmail). Tap below to enable it.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.open_in_new),
+              label: const Text("Open Settings"),
+              onPressed: () async {
+                Navigator.pop(context);
+                await openUsageAccessSettings();
+                // 🔁 Re-check usage permission after short delay
+                await Future.delayed(const Duration(seconds: 1));
+                final usageGranted = await hasUsageAccess();
+                print("📦 Usage rechecked after settings: $usageGranted");
+
+                setState(() {
+                  permissionsAccepted =
+                      usageGranted &&
+                      statuses.values.every((s) => s.isGranted || s.isLimited);
+                  if (!permissionsAccepted) _deniedOnce = true;
+                });
+
+                // Optional: show dialog again if still denied
+                if (!permissionsAccepted && context.mounted) {
+                  showNeuraPermissionExplanation();
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Step 3: If core permissions passed, ask about battery optimization
+    final allCoreGranted = basicGranted && await hasUsageAccess();
+
+    if (allCoreGranted && context.mounted) {
+      final userAgreedBatteryOptOut = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Allow Background Operation?"),
+          content: const Text(
+            "To ensure Ambient Mode works reliably, Neura needs to stay active in the background. "
+            "Would you like to allow this?\n\n(You’ll be prompted to ignore battery optimization.)",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("No"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Yes"),
+            ),
+          ],
+        ),
+      );
+
+      if (userAgreedBatteryOptOut == true) {
+        await requestBatteryOptimizationExemption();
+      }
+    }
+
+    // Step 4: Save final state
+    final fullyGranted = basicGranted && await hasUsageAccess();
 
     setState(() {
-      permissionsAccepted = granted;
-      if (!granted) _deniedOnce = true;
+      permissionsAccepted = fullyGranted;
+      if (!fullyGranted) _deniedOnce = true;
     });
   }
 
@@ -255,65 +363,138 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
-            Icon(Icons.lock, color: Colors.red),
-            SizedBox(width: 8),
-            Text("Neura Needs Permissions"),
-          ],
+      builder: (_) => Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 400, // 🔒 limits dialog width to 400px max
+          ),
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: const [
+                Icon(Icons.lock, color: Colors.red, size: 20),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "Neura Needs Permissions",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            content: const SingleChildScrollView(
+              child: Text(
+                "To work properly, Neura needs the following permissions:\n\n"
+                "🎤 Microphone — to hear your voice commands\n\n"
+                "📍 Location — for safety SOS & travel alerts\n\n"
+                "📲 App Access — to assist based on your activity\n\n"
+                "🔋 Battery — to stay active in Ambient Mode\n\n"
+                "🫧 Overlay — to show the listening dot anytime \n\n"
+                "Neura never shares your data. Everything is encrypted for your safety.",
+                textAlign: TextAlign.start,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: showPrivacyPolicyDialog,
+                child: const Text("Privacy Policy"),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() => _deniedOnce = true);
+                  Navigator.pop(context);
+                },
+                child: const Text("Not Now"),
+              ),
+              if (_deniedOnce)
+                TextButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await openAppSettings(); // opens app settings
+                  },
+                  child: const Text("Open Settings"),
+                ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.check_circle),
+                label: const Text("Allow & Continue"),
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await requestNeuraPermissions();
+                  if (!permissionsAccepted && context.mounted) {
+                    showNeuraPermissionExplanation(); // loop if denied
+                  }
+                },
+              ),
+            ],
+          ),
         ),
-        content: const SingleChildScrollView(
-          child: Text(
-            "To work properly, Neura needs the following permissions:\n\n"
-            "🎤 Microphone — to hear your voice\n"
-            "📍 Location — for emergency SOS and nearby alerts\n"
-            "📲 SMS & Phone — to send alerts or call your contacts\n"
-            "🔋 Battery Optimization — to run ambient mode without interruption\n"
-            "🔔 Overlay — to show the listening dot even when app is closed\n"
-            "📶 Internet — for real-time AI streaming and alerts\n\n"
-            "Neura never shares your data. These are for your safety and voice support.",
+      ),
+    );
+  }
+
+  Future<void> showPrivacyPolicyDialog() async {
+    final policyText = await rootBundle.loadString(
+      'assets/neura_privacy_policy.txt',
+    );
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Privacy Policy"),
+        content: SizedBox(
+          height: 400,
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Text(
+              policyText,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              setState(() => _deniedOnce = true);
-              Navigator.pop(context);
-            },
-            child: const Text("Not Now"),
-          ),
-          if (_deniedOnce)
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await requestNeuraPermissions();
-                if (!permissionsAccepted && context.mounted) {
-                  showNeuraPermissionExplanation(); // loop back if still denied
-                }
-              },
-              child: const Text("Retry"),
-            ),
-          if (_deniedOnce)
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await openAppSettings(); // ✅ requires import from permission_handler
-              },
-              child: const Text("Open Settings"),
-            ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.check_circle),
-            label: const Text("Allow & Continue"),
-            onPressed: () async {
-              Navigator.pop(context);
-              await requestNeuraPermissions();
-            },
+            onPressed: () => Navigator.pop(context),
+            child: const Text("I Agree"),
           ),
         ],
       ),
     );
+  }
+
+  Future<bool> hasUsageAccess() async {
+    try {
+      // ⏱️ Wait a bit to allow permission state to update
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      final result = await platformPermission.invokeMethod('hasUsageAccess');
+      debugPrint("📦 hasUsageAccess returned: $result");
+      return result == true;
+    } catch (e) {
+      debugPrint("❌ Error checking usage access: $e");
+      return false;
+    }
+  }
+
+  Future<void> openUsageAccessSettings() async {
+    try {
+      await platformPermission.invokeMethod('openUsageAccess');
+    } catch (e) {
+      debugPrint("Error opening usage access settings: $e");
+    }
+  }
+
+  Future<void> requestBatteryOptimizationExemption() async {
+    try {
+      await platformBattery.invokeMethod('requestIgnoreBatteryOptimization');
+    } catch (e) {
+      print("⚠️ Failed to request battery exemption: $e");
+    }
   }
 
   Widget _voiceOption({
@@ -453,6 +634,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // 🟢 Stepper added at top
+              const SetupProgressStepper(currentStep: SetupStep.onboarding),
+              const SizedBox(height: 24),
+
               const SizedBox(height: 20),
               Text("Set Up Your Neura", style: theme.textTheme.headlineSmall),
               const SizedBox(height: 12),
@@ -524,7 +709,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         return ListTile(
                           leading: Text(
                             emoji,
-                            style: const TextStyle(fontSize: 20),
+                            style: theme.textTheme.titleLarge,
                           ),
                           title: Text(lang['label']!),
                           onTap: () => Navigator.pop(context, lang['code']),
@@ -554,6 +739,20 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 ),
               ),
               const SizedBox(height: 30),
+              // 🔽 INSERT HERE 🔽
+              SwitchListTile(
+                value: smartTrackingEnabled,
+                onChanged: (value) {
+                  setState(() => smartTrackingEnabled = value);
+                },
+                title: const Text("Enable Smart Detect Mode"),
+                subtitle: const Text(
+                  "Allow Neura to detect which app you're using (e.g., Gmail, Spotify) to offer helpful, context-aware replies.",
+                  style: TextStyle(fontSize: 12),
+                ),
+                activeColor: theme.primaryColor,
+              ),
+              const SizedBox(height: 16),
               if (!permissionsAccepted)
                 Text(
                   "Please allow permissions to proceed.",
@@ -566,16 +765,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       ? null
                       : handleSave,
                   icon: isSaving
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: theme.colorScheme.onPrimary,
                           ),
                         )
                       : const Icon(Icons.arrow_forward),
-                  label: const Text("Continue to Neura"),
+                  label: Text(
+                    "Continue to Neura",
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onPrimary,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     textStyle: const TextStyle(fontSize: 16),

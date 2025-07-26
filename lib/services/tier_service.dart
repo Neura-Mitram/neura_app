@@ -4,6 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_base.dart';
 
 class TierService {
+  /// Current tier
+  Future<String> getCurrentTier() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('tier') ?? 'free'; // default fallback
+  }
+
   /// Upgrade tier
   Future<void> upgradeTier({
     required String deviceId,
@@ -38,9 +44,7 @@ class TierService {
   }
 
   /// Downgrade tier (only from pro -> basic)
-  Future<void> downgradeTier({
-    required String deviceId,
-  }) async {
+  Future<void> downgradeTier({required String deviceId}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
 
@@ -52,10 +56,7 @@ class TierService {
         'Authorization': "Bearer $token",
         'Content-Type': "application/json",
       },
-      body: jsonEncode({
-        "device_id": deviceId,
-        "new_tier": "basic",
-      }),
+      body: jsonEncode({"device_id": deviceId, "new_tier": "basic"}),
     );
 
     if (response.statusCode != 200) {

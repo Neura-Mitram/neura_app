@@ -4,6 +4,7 @@ import 'auth_service.dart';
 
 class TranslationService {
   static Map<String, String> _localizedStrings = {};
+  static String _currentLang = 'en'; // default
 
   /// Load and cache UI translations for the current user's preferred language
   static Future<void> loadTranslations([String? langCode]) async {
@@ -13,10 +14,11 @@ class TranslationService {
 
     final translations = await AuthService().translateUIStrings(
       keys: keys,
-      targetLang: lang,  // ✅ Use passed-in language
+      targetLang: lang, // ✅ Use passed-in language
     );
 
     _localizedStrings = translations;
+    _currentLang = lang;
 
     // Cache in SharedPreferences for reuse
     await prefs.setString('cached_translations', jsonEncode(_localizedStrings));
@@ -26,8 +28,10 @@ class TranslationService {
   static Future<void> restoreCachedTranslations() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('cached_translations');
+    final lang = prefs.getString('preferred_lang') ?? 'en';
     if (raw != null) {
       _localizedStrings = Map<String, String>.from(jsonDecode(raw));
+      _currentLang = lang;
     }
   }
 
@@ -37,42 +41,73 @@ class TranslationService {
   /// All Screen UI keys
   static const List<String> _translationKeys = [
     // Chat + Permissions
-    "Sending...",
-    "❌ Failed",
-    "Sent ✅",
-    "Emotion: {emotion}",
-    "Today",
+    "Neura’s activated. I’m {name}, with you, always.",
+    "Private mode enabled.",
+    "Private mode disabled.",
+    "Failed to update Private Mode.",
+    "Enable Memory?",
+    "Disable Memory?",
+    "Memory is now ON. Neura will start remembering your conversations to help you better.",
+    "Memory is now OFF. Neura will not remember anything from your conversations moving forward.",
+    "Cancel",
+    "OK",
+    "Memory enabled.",
+    "Memory disabled.",
     "Emergency Alert",
     "Neura detected a dangerous keyword. Do you want to send an SOS alert now?",
-    "Cancel",
     "Send SOS",
-    "Neura Needs Permissions",
-    "To protect you and respond when you talk, Neura needs:\n\n🎤 Microphone — to hear you speak\n📍 Location — to find you during emergencies\n📲 SMS & Calls — to alert your trusted contacts\n\nThese help Neura keep you safe in real-time.",
-    "Not Now",
-    "Allow & Continue",
-    "Some permissions were denied. Neura may not function fully.",
-    "Recording...",
+    "Today",
+    "You've reached your monthly limit. Upgrade to continue chatting.",
+    "Upgrade",
+    "You're nearing your monthly usage limit. Consider upgrading.",
+    "Limit Reached",
+    "You've hit your monthly usage limit. Upgrade to continue.",
     "Ask me anything...",
-    "Smart Assistant",
+    "Recording...",
+    "Toggle Memory",
+    "Private Mode",
+    "Interpreter ON",
+    "Interpreter OFF",
+    "Mano-Mitram",
+    "Unmute Nudges",
+    "Mute Nudges",
+    "Private mode expired",
 
     // Profile Screen
     "Your Profile",
     "Your AI Assistant",
-    "Voice: ",
+    "Last Sync",
+    "AI Model Version",
+    "Memory Enabled",
+    "Personality Mode",
+    "Language",
+    "Voice",
     "Current Plan",
     "Manage Subscription",
-    "Log Out",
+    "Memory Settings",
     "View Insights",
-    "Language"
+    "Log Out",
+    "Choose Language",
+    "Confirm Language Change",
+    "From now onwards, your \"{aiName}\" will chat with you in this language. Do you want to continue?",
+    "Cancel",
+    "Yes, Change",
+    "Language updated successfully. Neura will now assist you in this language.",
+    "FREE",
+    "BASIC",
+    "PRO",
 
     // Community Reports Screen
     "Community Reports",
     "Toggle My Reports / Community",
     "Search city or reason...",
     "No reports found.",
+    "Failed to load community reports",
 
     // Insights Screen
     "Insights",
+    "Export Personality",
+    "Snapshot not ready yet",
     "Usage Overview",
     "Text Messages",
     "Voice Messages",
@@ -83,21 +118,71 @@ class TranslationService {
     "This Month",
     "Last Month",
     "No emotion data available.",
+    "Personality Traits",
+    "No personality data available.",
+    "{count} day streak",
 
     // Manage Plan Screen
     "Manage Subscription",
     "Your Current Plan",
+    "Upgrade to Pro",
     "Downgrade Plan",
     "You can downgrade from Pro to Basic at any time. You will lose Pro features.",
     "Downgrade to Basic",
-    "You are not on Pro. Downgrade is not available.",
     "Confirm Downgrade",
     "You will lose:",
     "Unlimited Pro replies",
     "Pro voice styles",
     "Advanced content tools",
     "Cancel",
-    "✅ Downgraded to Basic."
+    "Confirm Downgrade",
+    "✅ Successfully downgraded to {tier}.",
+    "❌ Failed to save file: {error}",
+    "❌ {error}",
+    "Text Replies",
+    "Voice Replies",
+    "Content Tools",
+    "Priority Support",
+    "Pricing",
+    "Feature",
+    "Free",
+    "Basic",
+    "Pro",
+    "Starter plan with minimal limits.",
+    "Limited features with monthly cap.",
+    "Unlimited access with priority support.",
+    "UNKNOWN",
+
+    // Memory Screen
+    "Memory",
+    "Memory Enabled",
+    "Enable Memory?",
+    "Disable Memory?",
+    "Neura will start remembering your conversations.",
+    "Neura will stop remembering conversations.",
+    "Confirm",
+    "Cancel",
+    "Memory enabled.",
+    "Memory disabled.",
+    "Toggle Sort Order",
+    "Memory is currently disabled.",
+    "Please enable memory from settings.",
+    "Enable Memory",
+    "Export",
+    "Exported Memory",
+    "Copy",
+    "Share",
+    "Save as File",
+    "Close",
+    "File saved to \$directory", // optional to generalize with {path}
+    "Copied to clipboard",
+    "Failed to export memory.",
+    "Delete Memory",
+    "Are you sure you want to delete all saved memory?",
+    "Delete",
+    "Clear",
+    "Memory deleted successfully.",
+    "File saved to {path}",
 
     // Unsafe Reports Screen
     "My Unsafe Reports",
@@ -132,7 +217,7 @@ class TranslationService {
     "Stay alert. Help if safe.",
     "I’m Safe",
     "Call for Help",
-    "Report Unsafe Area"
+    "Report Unsafe Area",
 
     // Report Unsafe Area Screen
     "Report Unsafe Area",
@@ -142,7 +227,7 @@ class TranslationService {
     "✅ Report submitted successfully.",
     "❌ Failed to submit report.",
     "⚠️ Missing token or device ID.",
-    "❌ Error: {error}"
+    "❌ Error: {error}",
 
     // SOS Alert Screen
     "🚨 Emergency Mode",
@@ -153,19 +238,23 @@ class TranslationService {
     "❌ Backend SOS failed",
     "❌ Error: {error}",
     "✅ SMS sent to contacts",
-    "❌ SMS error: {error}"
+    "❌ SMS error: {error}",
+    "📨 Message ready. Please tap Send.",
 
     // My SOS Contact Screen
     "My SOS Contacts",
-    "❌ Failed to load SOS contacts",
-    "❌ Failed to add contact",
-    "❌ Failed to delete contact",
     "No contacts added.",
     "Add SOS Contact",
     "Name",
     "Phone",
     "Cancel",
-    "Save"
+    "Save",
+    "Next",
+    "You can only save up to 3 SOS contacts.",
+    "Please enter both name and phone number.",
+    "❌ Failed to load SOS contacts",
+    "❌ Failed to add contact",
+    "❌ Failed to delete contact",
 
     // Upgrade Screen
     "Upgrade Plan",
@@ -173,13 +262,13 @@ class TranslationService {
     "Free",
     "Basic",
     "Pro",
-    "Limited access to features.",
-    "More features and content.",
-    "Full access to everything.",
+    "Starter plan with minimal limits.",
+    "Limited features with monthly cap.",
+    "Unlimited access with priority support.",
     "Current Plan",
     "Payment Key",
     "Upgrade Now",
-    "✅ Upgrade successful!"
+    "✅ Upgrade successful!",
 
     // Wakeword Trainer Screen
     "Train Wakeword",
@@ -191,15 +280,10 @@ class TranslationService {
     "Wakeword Trained!",
     "Your assistant can now recognize your voice 🧠",
     "Continue",
+    "Upload failed: {error}",
   ];
 
-  static String get currentLang {
-    final lang = _localizedStrings.keys.isNotEmpty
-        ? _localizedStrings.keys.first
-        : 'en';
-    return lang;
-  }
-
+  static String get currentLang => _currentLang;
 }
 
 final List<Map<String, String>> languages = [

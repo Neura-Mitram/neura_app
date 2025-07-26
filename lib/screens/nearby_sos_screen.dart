@@ -29,7 +29,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
     super.initState();
     _vibrateDevice();
     Future.delayed(const Duration(seconds: 2), () {
-      _autoDialIfTierAllowed(); // auto-call after delay
+      _autoDialIfTierAllowed();
     });
     _checkUnsafeCluster();
   }
@@ -49,7 +49,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
         } catch (_) {}
       }
 
-      targetNumber ??= '112'; // fallback to emergency
+      targetNumber ??= '112';
 
       if (targetNumber.isNotEmpty) {
         final result = await FlutterPhoneDirectCaller.callNumber(targetNumber);
@@ -60,9 +60,9 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
                 TranslationService.tr(
                   "❌ Auto-call failed. Please dial manually.",
                 ),
-                style: TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white),
               ),
-              backgroundColor: Colors.red,
+              backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
         }
@@ -79,7 +79,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
   Future<void> _confirmImSafe() async {
     setState(() => isProcessing = true);
 
-    final LocalAuthentication auth = LocalAuthentication();
+    final auth = LocalAuthentication();
     bool authenticated = false;
 
     try {
@@ -103,7 +103,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
         SnackBar(
           content: Text(
             TranslationService.tr("✅ You’re marked safe"),
-            style: TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.green,
         ),
@@ -113,7 +113,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
         SnackBar(
           content: Text(
             TranslationService.tr("❌ Verification failed"),
-            style: TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.black,
         ),
@@ -128,11 +128,10 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
       final prefs = await SharedPreferences.getInstance();
       final deviceId = prefs.getInt("device_id");
       final token = prefs.getString("token");
-
       if (deviceId == null || token == null) return;
 
       final uri = Uri.parse("$Baseurl/safety/im-safe");
-      final res = await http.post(
+      await http.post(
         uri,
         headers: {
           "Authorization": "Bearer $token",
@@ -144,7 +143,6 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
           "timestamp": DateTime.now().toIso8601String(),
         }),
       );
-      debugPrint("🔐 Logged to backend: ${res.statusCode}");
     } catch (e) {
       debugPrint("❌ Error logging safe status: $e");
     }
@@ -155,28 +153,20 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      final lat = position.latitude;
-      final lon = position.longitude;
-
       final uri = Uri.parse(
-        "$Baseurl/safety/nearby-pings?latitude=$lat&longitude=$lon",
+        "$Baseurl/safety/nearby-pings?latitude=${position.latitude}&longitude=${position.longitude}",
       );
 
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString("token");
-
       final res = await http.get(
         uri,
         headers: {"Authorization": "Bearer $token"},
       );
 
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final count = data["count"] ?? 0;
-
-        if (count >= 2) {
-          _showClusterWarning(count);
-        }
+        final count = jsonDecode(res.body)["count"] ?? 0;
+        if (count >= 2) _showClusterWarning(count);
       }
     } catch (e) {
       debugPrint("❌ Cluster check error: $e");
@@ -187,14 +177,14 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: Colors.red.shade800,
+        backgroundColor: Theme.of(context).colorScheme.error,
         title: Text(
           TranslationService.tr("⚠️ Unsafe Area Detected"),
-          style: TextStyle(color: Colors.white),
+          style: const TextStyle(color: Colors.white),
         ),
         content: Text(
           TranslationService.tr(
-            "Multiple SOS reports ({count}) in your area.\nStay alert and avoid unsafe zones.",
+            "Multiple SOS reports ({count}) in your area.",
           ).replaceAll("{count}", "$count"),
           style: const TextStyle(color: Colors.white70),
         ),
@@ -203,7 +193,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               TranslationService.tr("OK"),
-              style: TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.white),
             ),
           ),
         ],
@@ -234,10 +224,10 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
               });
 
               return AlertDialog(
-                backgroundColor: Colors.red.shade900,
+                backgroundColor: Theme.of(context).colorScheme.error,
                 title: Text(
                   TranslationService.tr("Auto-calling emergency"),
-                  style: TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 content: Text(
                   TranslationService.tr("Calling in $seconds seconds..."),
@@ -253,13 +243,12 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
         SnackBar(
           content: Text(
             TranslationService.tr("📞 Tap to call manually"),
-            style: TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.orange,
         ),
       );
-
-      _launchDialer("112"); // fallback even for Free
+      _launchDialer("112");
     }
   }
 
@@ -272,9 +261,9 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
         SnackBar(
           content: Text(
             TranslationService.tr("❌ Could not launch dialer."),
-            style: TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white),
           ),
-          backgroundColor: Colors.red,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }
@@ -286,8 +275,9 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: Colors.red.shade900.withOpacity(0.95),
+      backgroundColor: theme.colorScheme.error.withOpacity(0.95),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -302,16 +292,17 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
                   "🚨 A Neura user nearby\ntriggered an SOS alert!",
                 ),
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: theme.textTheme.headlineSmall?.copyWith(
                   color: Colors.white,
-                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 TranslationService.tr("Stay alert. Help if safe."),
-                style: TextStyle(color: Colors.white70),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.white70,
+                ),
               ),
               const SizedBox(height: 30),
               ElevatedButton.icon(
@@ -320,7 +311,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
                 label: Text(TranslationService.tr("I’m Safe")),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: Colors.red.shade900,
+                  foregroundColor: theme.colorScheme.error,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 14,

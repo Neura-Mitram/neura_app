@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/api_base.dart';
 import '../services/translation_service.dart';
+import '../widgets/setup_progress_stepper.dart';
 
 class SosContactScreen extends StatefulWidget {
   const SosContactScreen({super.key});
@@ -39,13 +40,11 @@ class _SosContactScreenState extends State<SosContactScreen> {
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
-      print("✅ Contacts fetched: ${data['contacts']}");
       setState(() {
         contacts = List<Map<String, dynamic>>.from(data['contacts']);
         isLoading = false;
       });
     } else {
-      print("❌ Failed to fetch contacts: ${res.statusCode} ${res.body}");
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -137,10 +136,8 @@ class _SosContactScreenState extends State<SosContactScreen> {
     );
 
     if (res.statusCode == 200) {
-      print("✅ Contact added.");
       _fetchContacts();
     } else {
-      print("❌ Failed to add contact: ${res.statusCode} ${res.body}");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(TranslationService.tr("❌ Failed to add contact")),
@@ -165,10 +162,8 @@ class _SosContactScreenState extends State<SosContactScreen> {
     );
 
     if (res.statusCode == 200) {
-      print("✅ Contact deleted.");
       _fetchContacts();
     } else {
-      print("❌ Failed to delete contact: ${res.statusCode} ${res.body}");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(TranslationService.tr("❌ Failed to delete contact")),
@@ -196,29 +191,48 @@ class _SosContactScreenState extends State<SosContactScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(title: Text(TranslationService.tr("My SOS Contacts"))),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : contacts.isEmpty
-          ? Center(child: Text(TranslationService.tr("No contacts added.")))
-          : ListView.builder(
-              itemCount: contacts.length,
-              itemBuilder: (context, index) {
-                final c = contacts[index];
-                return ListTile(
-                  leading: const Icon(Icons.contact_phone),
-                  title: Text(c['name'] ?? ''),
-                  subtitle: Text(c['phone'] ?? ''),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () => _deleteContact(c['id']),
+      body: Column(
+        children: [
+          // 🟢 Stepper at top
+          const SetupProgressStepper(currentStep: SetupStep.sos),
+          const SizedBox(height: 12),
+
+          // 🔄 Contact list or loader
+          Expanded(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : contacts.isEmpty
+                ? Center(
+                    child: Text(TranslationService.tr("No contacts added.")),
+                  )
+                : ListView.builder(
+                    itemCount: contacts.length,
+                    itemBuilder: (context, index) {
+                      final c = contacts[index];
+                      return ListTile(
+                        leading: Icon(
+                          Icons.contact_phone,
+                          color: theme.colorScheme.primary,
+                        ),
+                        title: Text(c['name'] ?? ''),
+                        subtitle: Text(c['phone'] ?? ''),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () => _deleteContact(c['id']),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addContactDialog,
+        backgroundColor: theme.colorScheme.primary,
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar: _nextButton(),

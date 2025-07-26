@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/device_service.dart';
 import 'package:just_audio/just_audio.dart';
 import '../utils/dialog_utils.dart';
+import '../widgets/setup_progress_stepper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,23 +25,21 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _playWelcomeMessageIfFirstTime() async {
     final prefs = await SharedPreferences.getInstance();
-    final hasPlayed = prefs.getBool('welcome_played') ?? false;
+    final hasPlayed = prefs.getBool('login_welcome_played') ?? false;
 
     if (!hasPlayed) {
-      print(">>> Mark as played");
-      await prefs.setBool('welcome_played', true);
+      await prefs.setBool('login_welcome_played', true);
 
       try {
         final player = AudioPlayer();
         await player.setVolume(1.0);
-        await player.setAsset('assets/audio/welcome_neura.mp3');
-        await player.play();
-        print("✅ Playback started.");
+        await player.setAsset('assets/audio/welcome_neura.wav');
+        await Future.delayed(Duration(milliseconds: 100));
+        player.play(); // not awaited to avoid stalling UI
+        debugPrint("🎧 Welcome voice started.");
       } catch (e) {
-        print("❌ Playback error: $e");
+        debugPrint("❌ Playback error: $e");
       }
-    } else {
-      print(">>> Already played before");
     }
   }
 
@@ -48,7 +47,6 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
 
-    // Animation setup
     _controller = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
@@ -65,14 +63,13 @@ class _LoginScreenState extends State<LoginScreen>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _controller.forward();
-
-    // Play welcome message if first time
-    // Direct call to verify
     _playWelcomeMessageIfFirstTime();
   }
 
   @override
   void dispose() {
+    final player = AudioPlayer();
+    player.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -81,25 +78,16 @@ class _LoginScreenState extends State<LoginScreen>
     showNeuraLoading(context, "Logging you in...");
 
     final prefs = await SharedPreferences.getInstance();
-
-    // GET DEVICE ID
     final deviceId = await DeviceService().getDeviceId();
-
-    // SAVING DEVICE ID FOR ENTIRE APP
     await prefs.setString('device_id', deviceId);
 
     try {
-      // This returns the user map (not void)
       await AuthService().anonymousLogin(deviceId);
     } catch (e) {
-      Navigator.of(context).pop(); // dismiss loader
+      Navigator.of(context).pop();
       showNeuraError(context, "Login failed. Please try again.\nError: $e");
       return;
     }
-
-    // ✅ You now have user data
-    // You can safely read:
-    // user["ai_name"], user["voice"], etc.
 
     try {
       await DeviceService().updateDeviceContext(
@@ -109,17 +97,19 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text("✅ Device registered successfully."),
             duration: Duration(seconds: 2),
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest,
           ),
         );
       }
     } catch (e) {
-      print("⚠️ Device update failed: $e");
+      debugPrint("⚠️ Device update failed: $e");
     }
 
-    // ✅ Navigate to onboarding
     if (context.mounted) {
       await showNeuraSuccessDialog(
         context,
@@ -127,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen>
         subtitle: "Let’s personalize your assistant 🤖",
         buttonText: "Continue",
         onButtonTap: () async {
-          Navigator.of(context).pop(); // close dialog
+          Navigator.of(context).pop();
           await Future.delayed(const Duration(seconds: 2));
           if (context.mounted) {
             Navigator.pushReplacementNamed(context, '/onboarding');
@@ -152,6 +142,11 @@ class _LoginScreenState extends State<LoginScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // ✅ Stepper Progress Bar
+                  const SetupProgressStepper(currentStep: SetupStep.login),
+                  const SizedBox(height: 32),
+
+                  // 🔵 App Logo
                   Container(
                     width: 200,
                     height: 200,
@@ -159,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: theme.primaryColor.withAlpha(153),
+                          color: theme.colorScheme.primary.withAlpha(153),
                           blurRadius: 50,
                           spreadRadius: 5,
                         ),
@@ -167,23 +162,32 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/neura_logo.png',
+                        'assets/splash/neura_logo.png',
                         fit: BoxFit.cover,
                       ),
                     ),
                   ),
                   const SizedBox(height: 40),
-                  Text("Welcome to Neura", style: theme.textTheme.titleLarge),
+
+                  // Title
+                  Text(
+                    "Welcome to Neura Mitram",
+                    style: theme.textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 10),
+
+                  // 🔠 Animated App Name
                   const AnimatedSmriti(),
                   const SizedBox(height: 50),
+
+                  // 🔘 Login Button
                   SlideTransition(
                     position: _slideAnimation,
                     child: Container(
                       decoration: BoxDecoration(
                         boxShadow: [
                           BoxShadow(
-                            color: theme.primaryColor.withOpacity(0.4),
+                            color: theme.colorScheme.primary.withOpacity(0.4),
                             blurRadius: 20,
                             spreadRadius: 1,
                           ),
@@ -192,6 +196,13 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       child: ElevatedButton(
                         onPressed: handleAnonymousLogin,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
                         child: const Padding(
                           padding: EdgeInsets.symmetric(
                             vertical: 14.0,
@@ -222,7 +233,6 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ],
                     ),
-                  // ... Rest of your button code
                 ],
               ),
             ),
@@ -251,9 +261,7 @@ class _AnimatedSmritiState extends State<AnimatedSmriti> {
 
   void _startLoop() async {
     while (mounted) {
-      // Wait random duration 1–3 seconds
       await Future.delayed(Duration(seconds: 1 + Random().nextInt(3)));
-
       if (mounted) {
         setState(() {
           showLatin = !showLatin;
@@ -273,7 +281,6 @@ class _AnimatedSmritiState extends State<AnimatedSmriti> {
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 500),
           transitionBuilder: (child, animation) {
-            // Slide + scale + fade
             final offsetAnimation = Tween<Offset>(
               begin: const Offset(0.0, 0.5),
               end: Offset.zero,
@@ -292,7 +299,7 @@ class _AnimatedSmritiState extends State<AnimatedSmriti> {
                   decoration: BoxDecoration(
                     boxShadow: [
                       BoxShadow(
-                        color: theme.primaryColor.withOpacity(0.6),
+                        color: theme.colorScheme.primary.withOpacity(0.6),
                         blurRadius: 10 * animation.value,
                         spreadRadius: 1 * animation.value,
                       ),
@@ -304,10 +311,10 @@ class _AnimatedSmritiState extends State<AnimatedSmriti> {
             );
           },
           child: Text(
-            showLatin ? "Smṛti" : "स्मृति",
+            showLatin ? "Mano Mitram" : "मनः मित्रः।",
             key: ValueKey(showLatin),
             style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.primaryColor,
+              color: theme.colorScheme.primary,
               fontWeight: FontWeight.bold,
             ),
           ),

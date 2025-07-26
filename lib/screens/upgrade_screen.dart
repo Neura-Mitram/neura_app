@@ -14,8 +14,16 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
   String selectedTier = "basic";
   String paymentKey = "";
   bool isLoading = false;
-  String message = "";
   String? currentTier;
+
+  final Map<String, Map<String, String>> planInfo = {
+    'free': {'desc': "Starter plan with minimal limits.", 'price': "Free"},
+    'basic': {'desc': "Limited features with monthly cap.", 'price': "₹19/mo"},
+    'pro': {
+      'desc': "Unlimited access with priority support.",
+      'price': "₹199/mo",
+    },
+  };
 
   @override
   void initState() {
@@ -33,7 +41,6 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
   Future<void> handleUpgrade() async {
     setState(() {
       isLoading = true;
-      message = "";
     });
 
     final prefs = await SharedPreferences.getInstance();
@@ -46,16 +53,25 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
         paymentKey: paymentKey,
       );
 
-      setState(() {
-        message = TranslationService.tr("✅ Upgrade successful!");
-      });
-
       if (context.mounted) {
-        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(TranslationService.tr("✅ Upgrade successful!")),
+          ),
+        );
+        Navigator.pop(context, true);
       }
     } catch (e) {
       setState(() {
-        message = "❌ ${e.toString()}";
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              TranslationService.tr(
+                "❌ Error: {error}",
+              ).replaceAll("{error}", e.toString()),
+            ),
+          ),
+        );
       });
     }
 
@@ -73,10 +89,10 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
       onTap: isCurrent
           ? null
           : () {
-        setState(() {
-          selectedTier = tier;
-        });
-      },
+              setState(() {
+                selectedTier = tier;
+              });
+            },
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 8),
         padding: const EdgeInsets.all(16),
@@ -85,9 +101,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
               ? theme.colorScheme.primary.withOpacity(0.1)
               : theme.cardColor,
           border: Border.all(
-            color: isSelected
-                ? theme.colorScheme.primary
-                : theme.dividerColor,
+            color: isSelected ? theme.colorScheme.primary : theme.dividerColor,
             width: 2,
           ),
           borderRadius: BorderRadius.circular(12),
@@ -95,19 +109,28 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
         child: Row(
           children: [
             Icon(
-              isCurrent
-                  ? Icons.check_circle
-                  : Icons.radio_button_unchecked,
-              color: isCurrent
-                  ? theme.colorScheme.primary
-                  : theme.hintColor,
+              isCurrent ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: isCurrent ? theme.colorScheme.primary : theme.hintColor,
             ),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(TranslationService.tr(label), style: theme.textTheme.titleMedium),
-                Text(TranslationService.tr(description), style: theme.textTheme.bodySmall),
+                Text(
+                  TranslationService.tr(label),
+                  style: theme.textTheme.titleMedium,
+                ),
+                Text(
+                  TranslationService.tr(description),
+                  style: theme.textTheme.bodySmall,
+                ),
+                Text(
+                  planInfo[tier]!["price"]!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
                 if (isCurrent)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -118,7 +141,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
                         fontSize: 12,
                       ),
                     ),
-                  )
+                  ),
               ],
             ),
           ],
@@ -132,9 +155,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(TranslationService.tr("Upgrade Plan")),
-      ),
+      appBar: AppBar(title: Text(TranslationService.tr("Upgrade Plan"))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -165,15 +186,15 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            _tierOption("free", "Free", "Limited access to features."),
-            _tierOption("basic", "Basic", "More features and content."),
-            _tierOption("pro", "Pro", "Full access to everything."),
+            _tierOption("free", "Free", planInfo["free"]!["desc"]!),
+            _tierOption("basic", "Basic", planInfo["basic"]!["desc"]!),
+            _tierOption("pro", "Pro", planInfo["pro"]!["desc"]!),
             const SizedBox(height: 20),
             TextField(
               onChanged: (v) => paymentKey = v,
               decoration: InputDecoration(
                 labelText: TranslationService.tr("Payment Key"),
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 20),
@@ -181,29 +202,19 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
               onPressed: isLoading ? null : handleUpgrade,
               icon: isLoading
                   ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Icon(Icons.upgrade),
               label: Text(TranslationService.tr("Upgrade Now")),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
             ),
-            const SizedBox(height: 20),
-            if (message.isNotEmpty)
-              Text(
-                message,
-                style: TextStyle(
-                  color: message.startsWith("✅")
-                      ? Colors.green
-                      : theme.colorScheme.error,
-                ),
-              ),
           ],
         ),
       ),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +28,14 @@ class ChatController extends ChangeNotifier {
   // AI personalization
   String aiName = "Neura";
   String voice = "male";
+  String userTier = "free";
+
+  String? detectedSummaryType;
+  Map<String, dynamic>? summaryData;
+
+  final Queue<ChatMessage> _nudgeQueue = Queue();
+  bool _isPlayingNudge = false;
+  bool muteNudges = false;
 
   // Audio player
   final player = AudioPlayer();
@@ -62,8 +71,11 @@ class ChatController extends ChangeNotifier {
     aiName = prefs.getString('ai_name') ?? "Neura";
     voice = prefs.getString('voice') ?? "male";
     activeMode = prefs.getString('active_mode') ?? "manual"; // 👈 Add this line
+    userTier = prefs.getString('tier') ?? "free";
     notifyListeners();
   }
+
+  bool get isPro => userTier == "pro";
 
   /// Send a text message
   Future<void> sendTextMessage(String text) async {
@@ -88,6 +100,25 @@ class ChatController extends ChangeNotifier {
       userMessage.isPending = false;
       userMessage.isFailed = false;
 
+      final Map<String, String> summaryKeyMap = {
+        'goal_summary': 'goal',
+        'journal_summary': 'journal',
+        'habit_summary': 'habit',
+        'mood_summary': 'mood',
+        'daily_checkin_summary': 'checkin',
+        'fallback_interpretation': 'fallback',
+      };
+
+      for (final key in summaryKeyMap.keys) {
+        if (data.containsKey(key)) {
+          detectedSummaryType = summaryKeyMap[key]; // e.g., 'goal'
+          summaryData = data[key];
+          break;
+        }
+      }
+
+      final isPrompt = (data['rawData']?['metadata'] == "in_chat");
+
       messages.add(
         ChatMessage(
           text: data['reply'],
@@ -96,7 +127,11 @@ class ChatController extends ChangeNotifier {
           messagesUsed: data['messages_used_this_month'],
           messagesRemaining: data['messages_remaining'],
           suggestions: (data['replies'] as List<dynamic>?)?.cast<String>(),
+          summaryType: detectedSummaryType,
+          summaryData: summaryData,
+          isPrompt: isPrompt,
           timestamp: DateTime.now(),
+          rawData: data['rawData'],
         ),
       );
       // 🔴 New: Log SOS time + emotion to backend
@@ -135,10 +170,41 @@ class ChatController extends ChangeNotifier {
     player.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
         currentlyPlayingUrl = null;
-        notifyListeners(); // update highlight
+        _isPlayingNudge = false;
+        _playNextNudge(); // ▶️ play next one in queue
+        notifyListeners();
         onComplete();
       }
     });
+  }
+
+  void enqueueNudge(ChatMessage msg) {
+    _nudgeQueue.add(msg);
+    if (!_isPlayingNudge) {
+      _playNextNudge();
+    }
+  }
+
+  void _playNextNudge() async {
+    if (_nudgeQueue.isEmpty || _isPlayingNudge) return;
+
+    final msg = _nudgeQueue.removeFirst();
+    if (msg.voiceUrl != null) {
+      try {
+        _isPlayingNudge = true;
+        currentlyPlayingUrl = msg.voiceUrl;
+        await player.setUrl(msg.voiceUrl!);
+        await player.play();
+      } catch (e) {
+        _isPlayingNudge = false;
+        _playNextNudge(); // skip if error
+      }
+    }
+  }
+
+  void toggleNudgeMute() {
+    muteNudges = !muteNudges;
+    notifyListeners();
   }
 
   void setRecording(bool value) {
@@ -178,6 +244,32 @@ class ChatController extends ChangeNotifier {
     } catch (e) {
       debugPrint("❌ Error logging SOS metadata: $e");
     }
+  }
+
+  void addSummaryCard({
+    required String type,
+    required String emoji,
+    required String text,
+    required DateTime timestamp,
+  }) {
+    final summaryMessage = ChatMessage(
+      isUser: false,
+      summaryType: type,
+      summaryData: {
+        'emoji': emoji,
+        'text': text,
+        'timestamp': timestamp.toIso8601String(),
+      },
+      timestamp: timestamp,
+    );
+
+    // ⛔ Cap list at 20 messages to avoid unbounded memory
+    if (messages.length >= 20) {
+      messages.removeAt(0); // remove oldest
+    }
+
+    messages.add(summaryMessage);
+    notifyListeners();
   }
 
   /// Dispose audio resources

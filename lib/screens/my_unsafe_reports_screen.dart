@@ -1,3 +1,6 @@
+// Fully theme-compliant version of MyUnsafeReportsScreen for Flutter 3.18+
+// Updated with colorScheme, textTheme, snackbar colors, and button styles
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -114,11 +117,12 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
       },
     );
 
+    final theme = Theme.of(context);
     if (response.statusCode == 200) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(TranslationService.tr("✅ Report deleted")),
-          backgroundColor: Colors.green,
+          backgroundColor: theme.colorScheme.secondary,
         ),
       );
       await _fetchReports();
@@ -126,13 +130,14 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(TranslationService.tr("❌ Failed to delete")),
-          backgroundColor: Colors.red,
+          backgroundColor: theme.colorScheme.error,
         ),
       );
     }
   }
 
   void _confirmDelete(int reportId) {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -150,11 +155,196 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
               Navigator.pop(context);
               _deleteReport(reportId, context);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.error,
+              foregroundColor: theme.colorScheme.onError,
+            ),
             child: Text(TranslationService.tr("Delete")),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _fetchUnsafeSummary() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString("token");
+      final deviceId = prefs.getInt("device_id");
+
+      if (token == null || deviceId == null) return;
+
+      final uri = Uri.parse("$Baseurl/safety/unsafe-summary");
+      final response = await http.post(
+        uri,
+        headers: {"Authorization": "Bearer $token"},
+        body: {"device_id": deviceId.toString()},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() => unsafeSummary = data["summary"]);
+      }
+    } catch (e) {
+      debugPrint("Error fetching unsafe summary: $e");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(TranslationService.tr('My Unsafe Reports')),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.my_location),
+            tooltip: TranslationService.tr("Jump to nearby reports"),
+            onPressed: () => _scrollToNearestLocation(context),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(40),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: TranslationService.tr('Search city or keyword...'),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (val) =>
+                  setState(() => searchQuery = val.toLowerCase()),
+            ),
+          ),
+        ),
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : groupedReports.isEmpty
+          ? Center(child: Text(TranslationService.tr("No reports yet.")))
+          : Column(
+              children: [
+                const CommunityAlertBanner(),
+                if (unsafeSummary != null)
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Card(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: theme.colorScheme.error,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                unsafeSummary!,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: ListView(
+                    children: groupedReports.entries.expand<Widget>((
+                      stateEntry,
+                    ) {
+                      final state = stateEntry.key;
+                      return [
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(
+                            "📍 $state",
+                            style: theme.textTheme.titleMedium,
+                          ),
+                        ),
+                        ...stateEntry.value.entries.expand<Widget>((cityEntry) {
+                          final city = cityEntry.key;
+                          if (!city.toLowerCase().contains(searchQuery) &&
+                              searchQuery.isNotEmpty)
+                            return [];
+                          return [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 16.0,
+                                bottom: 4,
+                              ),
+                              child: Text(
+                                "└── $city",
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                            ...cityEntry.value.entries.expand<Widget>((
+                              areaEntry,
+                            ) {
+                              final area = areaEntry.key;
+                              return [
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 24.0,
+                                    bottom: 4,
+                                  ),
+                                  child: Text(
+                                    "    ├── $area",
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ),
+                                ...areaEntry.value.entries.map<Widget>((
+                                  streetEntry,
+                                ) {
+                                  final street = streetEntry.key;
+                                  final areaReports = streetEntry.value;
+                                  final tileKey = GlobalKey();
+                                  _tileKeys["$city|$area"] = tileKey;
+                                  return ExpansionTile(
+                                    key: tileKey,
+                                    title: Text(
+                                      "        ├── $street (${areaReports.length} ${TranslationService.tr("Reports")})",
+                                    ),
+                                    children: areaReports.map<Widget>((r) {
+                                      final time = DateFormat(
+                                        'dd MMM, hh:mm a',
+                                      ).format(DateTime.parse(r['timestamp']));
+                                      return ListTile(
+                                        title: Text(
+                                          "🟧 ${r['reason']} – $time",
+                                        ),
+                                        subtitle: Text(r['location'] ?? ''),
+                                        trailing: IconButton(
+                                          icon: Icon(
+                                            Icons.delete,
+                                            color: theme.colorScheme.error,
+                                          ),
+                                          onPressed: () =>
+                                              _confirmDelete(r['id']),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  );
+                                }).toList(),
+                              ];
+                            }).toList(),
+                          ];
+                        }).toList(),
+                      ];
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -166,7 +356,7 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(TranslationService.tr("Location permission denied")),
-            backgroundColor: Colors.orange,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
         return;
@@ -180,7 +370,7 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
               "Location permission permanently denied. Please enable it from settings.",
             ),
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
@@ -212,7 +402,7 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(TranslationService.tr("Location check failed")),
-          backgroundColor: Colors.red,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }
@@ -231,193 +421,9 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(TranslationService.tr("No reports nearby")),
-          backgroundColor: Colors.orange,
+          backgroundColor: Theme.of(context).colorScheme.secondary,
         ),
       );
     }
-  }
-
-  Future<void> _fetchUnsafeSummary() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString("token");
-      final deviceId = prefs.getInt("device_id");
-
-      if (token == null || deviceId == null) return;
-
-      final uri = Uri.parse("$Baseurl/safety/unsafe-summary");
-      final response = await http.post(
-        uri,
-        headers: {"Authorization": "Bearer $token"},
-        body: {"device_id": deviceId.toString()},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() => unsafeSummary = data["summary"]);
-      }
-    } catch (e) {
-      debugPrint("Error fetching unsafe summary: $e");
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(TranslationService.tr('My Unsafe Reports')),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.my_location),
-            tooltip: TranslationService.tr("Jump to nearby reports"),
-            onPressed: () => _scrollToNearestLocation(context),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(40),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: TranslationService.tr('Search city or keyword...'),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (val) =>
-                  setState(() => searchQuery = val.toLowerCase()),
-            ),
-          ),
-        ),
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : groupedReports.isEmpty
-          ? Center(child: Text(TranslationService.tr("No reports yet.")))
-          : Column(
-              children: [
-                const CommunityAlertBanner(),
-                if (unsafeSummary != null)
-                  Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Card(
-                      color: Colors.orange.shade50,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.warning_amber_rounded,
-                              color: Colors.orange,
-                              size: 28,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                unsafeSummary!,
-                                style: const TextStyle(fontSize: 15),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                Expanded(
-                  child: ListView(
-                    children: groupedReports.entries.expand<Widget>((
-                      stateEntry,
-                    ) {
-                      final state = stateEntry.key;
-                      return <Widget>[
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(
-                            "📍 $state",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                        ...stateEntry.value.entries.expand<Widget>((cityEntry) {
-                          final city = cityEntry.key;
-                          if (!city.toLowerCase().contains(searchQuery) &&
-                              searchQuery.isNotEmpty)
-                            return <Widget>[];
-                          return <Widget>[
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: 16.0,
-                                bottom: 4,
-                              ),
-                              child: Text(
-                                "└── $city",
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ),
-                            ...cityEntry.value.entries.expand<Widget>((
-                              areaEntry,
-                            ) {
-                              final area = areaEntry.key;
-                              return <Widget>[
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 24.0,
-                                    bottom: 4,
-                                  ),
-                                  child: Text(
-                                    "    ├── $area",
-                                    style: const TextStyle(fontSize: 15),
-                                  ),
-                                ),
-                                ...areaEntry.value.entries.map<Widget>((
-                                  streetEntry,
-                                ) {
-                                  final street = streetEntry.key;
-                                  final areaReports = streetEntry.value;
-                                  final tileKey = GlobalKey();
-                                  _tileKeys["$city|$area"] = tileKey;
-                                  return ExpansionTile(
-                                    key: tileKey,
-                                    title: Text(
-                                      "        ├── $street (${areaReports.length} ${TranslationService.tr("Reports")})",
-                                    ),
-                                    children: areaReports.map<Widget>((r) {
-                                      final time = DateFormat(
-                                        'dd MMM, hh:mm a',
-                                      ).format(DateTime.parse(r['timestamp']));
-                                      return ListTile(
-                                        title: Text(
-                                          "🟧 ${r['reason']} – $time",
-                                        ),
-                                        subtitle: Text(r['location'] ?? ''),
-                                        trailing: IconButton(
-                                          icon: const Icon(
-                                            Icons.delete,
-                                            color: Colors.redAccent,
-                                          ),
-                                          onPressed: () =>
-                                              _confirmDelete(r['id']),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  );
-                                }).toList(),
-                              ];
-                            }).toList(),
-                          ];
-                        }).toList(),
-                      ];
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-    );
   }
 }

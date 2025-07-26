@@ -25,6 +25,8 @@ import okio.ByteString
 import java.util.*
 import org.json.JSONObject
 import java.io.IOException
+import android.app.AppOpsManager
+import android.content.pm.ApplicationInfo
 
 
 class MainActivity : FlutterActivity() {
@@ -106,25 +108,22 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "sos.sms.native")
             .setMethodCallHandler { call, result ->
                 if (call.method == "sendSilentSms") {
-                    val contacts = call.argument<List<Map<String, String>>>("contacts")
                     val message = call.argument<String>("message") ?: "🚨 Emergency! I need help."
+                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                    val deviceId = prefs.getString("flutter.device_id", null)
+                    val token = prefs.getString("auth_token", null)
 
-                    try {
-                        val smsManager = SmsManager.getDefault()
-                        contacts?.forEach {
-                            val phone = it["phone"]
-                            if (!phone.isNullOrEmpty()) {
-                                smsManager.sendTextMessage(phone, null, message, null, null)
-                            }
-                        }
+                    if (deviceId != null && token != null) {
+                        openSmsAppForContacts(deviceId, token, message)
                         result.success(true)
-                    } catch (e: Exception) {
-                        result.error("SMS_FAILED", "Failed to send SMS: ${e.message}", null)
+                    } else {
+                        result.error("MISSING_CONTEXT", "Missing device ID or token", null)
                     }
                 } else {
                     result.notImplemented()
                 }
             }
+
 
         // ✅ Smart SOS Escalation Logic
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "sos.sosLogic")
@@ -148,7 +147,7 @@ class MainActivity : FlutterActivity() {
                         val deviceId = prefs.getString("flutter.device_id", null)
                         val token = prefs.getString("auth_token", null)
                         if (deviceId != null && token != null) {
-                            fetchAndSendSosContacts(deviceId, token, message)
+                            openSmsAppForContacts(deviceId, token, message)
                         }
 
                         Handler(Looper.getMainLooper()).postDelayed({
@@ -190,16 +189,64 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        // ✅ Request battery optimization exemption
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val packageName = applicationContext.packageName
-            val pm = getSystemService(POWER_SERVICE) as PowerManager
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                intent.data = Uri.parse("package:$packageName")
-                startActivity(intent)
+        // ✅ Smart Nudge Logic
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "neura/native/nudge")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "showNudgeBubble") {
+                    val emoji = call.argument<String>("emoji") ?: "💡"
+                    val text = call.argument<String>("text") ?: "Take a moment"
+                    val lang = call.argument<String>("lang") ?: "en"
+
+                    val intent = Intent("com.neura.NEW_NUDGE").apply {
+                        putExtra("emoji", emoji)
+                        putExtra("text", text)
+                        putExtra("lang", lang)
+                    }
+                    sendBroadcast(intent)
+                    result.success(true)
+                } else {
+                    result.notImplemented()
+                }
             }
-        }
+
+        // ✅ Smart Permissions For events help
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.neura/permissions")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "hasUsageAccess" -> result.success(hasUsageAccess())
+                    "openUsageAccess" -> {
+                        openUsageAccessSettings()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+
+        // ✅ Battery Optimization Request (moved here safely)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.neura/battery")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "requestIgnoreBatteryOptimization") {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val packageName = applicationContext.packageName
+                        val pm = getSystemService(POWER_SERVICE) as PowerManager
+                        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                            intent.data = Uri.parse("package:$packageName")
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(intent)
+                        }
+                    }
+                    result.success(true)
+                } else {
+                    result.notImplemented()
+                }
+            }
+
+
+
+        // ✅ Send cached summaries to Flutter on app open
+        pushChatSummariesToFlutter()
     }
 
     private fun playTtsStream(url: String) {
@@ -255,10 +302,10 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun fetchAndSendSosContacts(deviceId: String, token: String, message: String = "🚨 Emergency! I need help.") {
+    private fun openSmsAppForContacts(deviceId: String, token: String, message: String = "🚨 Emergency! I need help.") {
         val url = "https://byshiladityamallick-neura-smart-assistant.hf.space/safety/list-sos-contacts"
-
         val client = OkHttpClient()
+
         val requestBody = RequestBody.create(
             "application/json".toMediaTypeOrNull(),
             """{ "device_id": "$deviceId" }"""
@@ -281,11 +328,19 @@ class MainActivity : FlutterActivity() {
                         val json = JSONObject(responseBody)
                         val contacts = json.getJSONArray("contacts")
 
-                        val smsManager = SmsManager.getDefault()
                         for (i in 0 until contacts.length()) {
                             val contact = contacts.getJSONObject(i)
                             val phone = contact.getString("phone")
-                            smsManager.sendTextMessage(phone, null, message, null, null)
+
+                            val uri = Uri.parse("smsto:$phone")
+                            val intent = Intent(Intent.ACTION_SENDTO, uri).apply {
+                                putExtra("sms_body", message)
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+
+                            if (intent.resolveActivity(packageManager) != null) {
+                                startActivity(intent)
+                            }
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -295,6 +350,60 @@ class MainActivity : FlutterActivity() {
         })
     }
 
+    private fun pushChatSummariesToFlutter() {
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val summaryJson = prefs.getString("cached_summary_list", "[]") ?: "[]"
+
+        val engine = FlutterEngineCache.getInstance().get("main_engine")
+        engine?.let {
+            val channel = MethodChannel(it.dartExecutor.binaryMessenger, "neura/chat/summary")
+            channel.invokeMethod("pushChatSummaries", summaryJson)
+
+            // Optional: clear the list after sending
+            prefs.edit().remove("cached_summary_list").apply()
+        }
+    }
+
+    private fun hasUsageAccess(): Boolean {
+        // 🧪 Emulator bypass (optional)
+        if (Build.FINGERPRINT.contains("generic")) return true
+
+        return try {
+            val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+
+            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Android 11+ recommended way
+                appOps.unsafeCheckOpNoThrow(
+                    AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(),
+                    packageName
+                )
+            } else {
+                // Legacy but still safe fallback
+                appOps.checkOpNoThrow(
+                    AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(),
+                    packageName
+                )
+            }
+
+            mode == AppOpsManager.MODE_ALLOWED
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+
+
+
+
+
+    private fun openUsageAccessSettings() {
+        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
 
     override fun onDestroy() {
         tts?.stop()
