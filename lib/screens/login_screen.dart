@@ -244,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen>
 }
 
 class AnimatedSmriti extends StatefulWidget {
-  const AnimatedSmriti({Key? key}) : super(key: key);
+  const AnimatedSmriti({super.key});
 
   @override
   State<AnimatedSmriti> createState() => _AnimatedSmritiState();

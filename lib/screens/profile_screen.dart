@@ -280,7 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   );
                 },
               );
-            }).toList(),
+            }),
             const SizedBox(height: 16),
           ],
         );

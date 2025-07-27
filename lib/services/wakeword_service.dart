@@ -31,7 +31,7 @@ class WakewordService {
       return;
     }
 
-    _interpreter = await Interpreter.fromFile(File(modelPath));
+    _interpreter = Interpreter.fromFile(File(modelPath));
     debugPrint("Wakeword model loaded ✅");
   }
 

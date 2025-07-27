@@ -63,7 +63,7 @@ class SafeRouteCard extends StatelessWidget {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
               if (aiTip != null && aiTip!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0),

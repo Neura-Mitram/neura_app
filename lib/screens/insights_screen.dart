@@ -103,7 +103,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       final bytes = Uint8List.fromList(utf8.encode(formatted));
 
       // Save as .txt using FileSaver
-      final String? path = await FileSaver.instance.saveFile(
+      final String path = await FileSaver.instance.saveFile(
         name: "neura_personality_snapshot",
         bytes: bytes,
         ext: "txt",
