@@ -90,10 +90,15 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     try {
-      await DeviceService().updateDeviceContext(
-        outputAudioMode: "speaker",
-        preferredDeliveryMode: "text",
-      );
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken){
+        await prefs.setString('last_fcm_token', fcmToken);
+      }
+      await DeviceService().updateDeviceContextWithFcm(
+      fcmToken: fcmToken,
+      outputAudioMode: "speaker",
+      preferredDeliveryMode: "text",
+    );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
