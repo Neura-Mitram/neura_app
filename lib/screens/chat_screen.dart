@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:neura_app/controllers/chat_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:vibration/vibration.dart';
 
+import '../services/device_service.dart';
 import '../widgets/chat_summary_cards.dart';
 import '../models/chat_message.dart';
 import '../controllers/chat_provider.dart';
