@@ -1,45 +1,67 @@
-# Miscellaneous
+# ────────── Flutter & Dart ──────────
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.dill
+*.tmp
+*.lock
+
+# Flutter API docs
+**/doc/api/
+
+# ────────── Android ──────────
+android/app/google-services.json
+/android/app/debug
+/android/app/profile
+/android/app/release
 *.class
+*.apk
+*.aab
+
+# App signing & keystores
+*.jks
+*.keystore
+key.properties
+
+# ────────── Firebase ──────────
+firebase-debug.log
+firebase.json
+firebase-app-id.json
+
+# ────────── Appetize ──────────
+appetize-upload.json
+
+# ────────── IDEs & Editors ──────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.atom/
+.history
+
+# ────────── OS & Misc ──────────
 *.log
 *.pyc
 *.swp
 .DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
+.Thumbs.db
+.sass-cache
+*.symbols
+app.*.map.json
 migrate_working_dir/
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
+# ────────── Docker / Codespaces ──────────
+.docker/
+.devcontainer/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# ────────── Versioning tools ──────────
+.svn/
+.swiftpm/
 
-# Flutter/Dart/Pub related
-**/doc/api/
+# ────────── iOS (if ever added) ──────────
 **/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release

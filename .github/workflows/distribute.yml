@@ -1,0 +1,104 @@
+name: Distribute Neura Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+      build_format:
+        description: 'Build format'
+        required: true
+        default: 'apk'
+        type: choice
+        options:
+          - apk
+          - aab
+
+env:
+  BUILD_MODE: ${{ github.event.inputs.build_mode }}
+  BUILD_FORMAT: ${{ github.event.inputs.build_format }}
+
+jobs:
+  build:
+    name: Build & Distribute Neura
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🔁 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.8"
+
+      - name: 📦 Install dependencies
+        run: flutter pub get
+
+      - name: 🔐 Write google-services.json
+        run: echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
+
+      - name: 🏗️ Build APK or AAB
+        run: |
+          echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode..."
+          if [ "$BUILD_MODE" = "release" ]; then
+            if [ "$BUILD_FORMAT" = "apk" ]; then
+              flutter build apk --release
+            else
+              flutter build appbundle --release
+            fi
+          else
+            flutter build apk --debug
+          fi
+
+      - name: 📦 Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: 🚀 Upload to Firebase (release only)
+        if: env.BUILD_MODE == 'release'
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          token: ${{ secrets.FIREBASE_TOKEN }}
+          groups: testers
+          file: |
+            ${{ env.BUILD_FORMAT == 'aab' && 'build/app/outputs/bundle/release/app-release.aab' || 'build/app/outputs/flutter-apk/app-release.apk' }}
+          releaseNotes: "📦 Auto build from GitHub Actions (${{ env.BUILD_FORMAT }}, ${{ env.BUILD_MODE }})"
+
+      - name: 🌐 Upload APK to Appetize.io (APK only)
+        if: env.BUILD_FORMAT == 'apk'
+        env:
+          APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
+        run: |
+          echo "📤 Uploading APK to Appetize.io..."
+
+          if [ "$BUILD_MODE" = "release" ]; then
+            apk_path="build/app/outputs/flutter-apk/app-release.apk"
+          else
+            apk_path="build/app/outputs/flutter-apk/app-debug.apk"
+          fi
+
+          response=$(curl -s -X POST https://upload.appetize.io/upload \
+            -H "Authorization: Bearer $APPETIZE_API_TOKEN" \
+            -F "file=@$apk_path" \
+            -F "platform=android" \
+            -F "note=Neura $BUILD_MODE build from GitHub")
+
+          url=$(echo "$response" | jq -r '.url')
+
+          if [ "$url" != "null" ]; then
+            echo ""
+            echo "✅ Emulator Link:"
+            echo "👉 $url"
+            echo ""
+            echo "⚠️ Note: This emulator will expire after 7 days (Appetize default)."
+          else
+            echo "❌ Appetize upload failed or URL missing"
+            exit 1
+          fi
