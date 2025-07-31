@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:math';
 import '../services/auth_service.dart';
 import '../services/device_service.dart';
@@ -91,25 +92,27 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       final fcmToken = await FirebaseMessaging.instance.getToken();
-      if (fcmToken){
-        await prefs.setString('last_fcm_token', fcmToken);
-      }
-      await DeviceService().updateDeviceContextWithFcm(
-      fcmToken: fcmToken,
-      outputAudioMode: "speaker",
-      preferredDeliveryMode: "text",
-    );
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("✅ Device registered successfully."),
-            duration: Duration(seconds: 2),
-            backgroundColor: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest,
-          ),
+      if (fcmToken != null) {
+        await prefs.setString('last_fcm_token', fcmToken);
+
+        await DeviceService().updateDeviceContextWithFcm(
+          fcmToken: fcmToken,
+          outputAudioMode: "speaker",
+          preferredDeliveryMode: "text",
         );
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("✅ Device registered successfully."),
+              duration: Duration(seconds: 2),
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            ),
+          );
+        }
+      } else {
+        debugPrint("⚠️ FCM token is null. Device context not updated.");
       }
     } catch (e) {
       debugPrint("⚠️ Device update failed: $e");
