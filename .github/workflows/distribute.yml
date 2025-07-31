@@ -79,3 +79,9 @@ jobs:
           groups: testers
           file: ${{ env.ARTIFACT_PATH }}
           releaseNotes: "📦 Auto build from GitHub Actions (${{ env.BUILD_FORMAT }}, ${{ env.BUILD_MODE }})"
+
+      - name: 💾 Upload APK/AAB to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: Neura-${{ env.BUILD_MODE }}-${{ env.BUILD_FORMAT }}
+          path: ${{ env.ARTIFACT_PATH }}
