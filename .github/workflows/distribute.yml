@@ -77,33 +77,5 @@ jobs:
           appId: ${{ secrets.FIREBASE_APP_ID }}
           token: ${{ secrets.FIREBASE_TOKEN }}
           groups: testers
-          file:  ${{ env.ARTIFACT_PATH }}
+          file: ${{ env.ARTIFACT_PATH }}
           releaseNotes: "📦 Auto build from GitHub Actions (${{ env.BUILD_FORMAT }}, ${{ env.BUILD_MODE }})"
-
-      - name: 🌐 Upload APK to Appetize.io (APK only)
-        if: ${{ env.BUILD_FORMAT == 'apk' }}
-        env:
-          APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
-        run: |
-          echo "📤 Uploading APK to Appetize.io..."
-
-          apk_path=$ARTIFACT_PATH
-
-          response=$(curl -s -X POST https://upload.appetize.io/upload \
-            -H "Authorization: Bearer $APPETIZE_API_TOKEN" \
-            -F "file=@$apk_path" \
-            -F "platform=android" \
-            -F "note=Neura $BUILD_MODE build from GitHub")
-
-          url=$(echo "$response" | jq -r '.url')
-
-          if [ "$url" != "null" ]; then
-            echo ""
-            echo "✅ Emulator Link:"
-            echo "👉 $url"
-            echo ""
-            echo "⚠️ Note: This emulator will expire after 7 days (Appetize default)."
-          else
-            echo "❌ Appetize upload failed or URL missing"
-            exit 1
-          fi
