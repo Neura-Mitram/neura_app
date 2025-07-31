@@ -54,6 +54,8 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
     _handleFirstTimeLanding();
     _loadMemoryStatus();
     _fetchPrivateMode();
+    _retryFCMTokenIfNeeded();
+
     ref
         .read(chatControllerProvider(widget.deviceId).notifier)
         .loadPreferences();
@@ -761,6 +763,26 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
       );
     }
   }
+
+  void _retryFCMTokenIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastSent = prefs.getString('last_fcm_token');
+
+    try {
+      final currentToken = await FirebaseMessaging.instance.getToken();
+
+      if (currentToken != null && currentToken != lastSent) {
+        await DeviceService().retryFcmToken(currentToken);
+        await prefs.setString('last_fcm_token', currentToken);
+        debugPrint("✅ FCM token updated in chat screen");
+      } else {
+        debugPrint("ℹ️ FCM token already up-to-date or null");
+      }
+    } catch (e) {
+      debugPrint("⚠️ FCM update in chat screen failed: $e");
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {

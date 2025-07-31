@@ -274,8 +274,9 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
                         ...stateEntry.value.entries.expand<Widget>((cityEntry) {
                           final city = cityEntry.key;
                           if (!city.toLowerCase().contains(searchQuery) &&
-                              searchQuery.isNotEmpty)
+                              searchQuery.isNotEmpty) {
                             return [];
+                          }
                           return [
                             Padding(
                               padding: const EdgeInsets.only(
@@ -334,11 +335,11 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
                                       );
                                     }).toList(),
                                   );
-                                }).toList(),
+                                }),
                               ];
-                            }).toList(),
+                            }),
                           ];
-                        }).toList(),
+                        }),
                       ];
                     }).toList(),
                   ),

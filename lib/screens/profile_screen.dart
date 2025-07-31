@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'manage_subscription_screen.dart';
@@ -280,7 +279,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   );
                 },
               );
-            }).toList(),
+            }),
             const SizedBox(height: 16),
           ],
         );

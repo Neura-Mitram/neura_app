@@ -43,8 +43,9 @@ class DeviceService {
     return "unsupported_platform";
   }
 
-  /// Update device info to backend
-  Future<void> updateDeviceContext({
+  /// Update device + FCM TOKEN info to backend
+  Future<void> updateDeviceContextWithFcm({
+    required String? fcmToken,
     String? outputAudioMode,
     String? preferredDeliveryMode,
     String? deviceToken,
@@ -53,38 +54,65 @@ class DeviceService {
     final token = prefs.getString('auth_token');
     final deviceId = prefs.getString('device_id');
 
-    if (deviceId == null) {
-      throw Exception("No device Id found. Please log in first.");
+    if (deviceId == null || token == null) {
+      throw Exception("Missing device ID or token");
     }
 
     final platform = _getPlatform();
     final osVersion = await _getOsVersion();
 
-    final payload = {
-      "device_id": deviceId,
-      "device_type": platform,
-      "os_version": osVersion,
-      "device_token": deviceToken ?? "",
-      "output_audio_mode": outputAudioMode ?? "speaker",
-      "preferred_delivery_mode": preferredDeliveryMode ?? "text",
-    };
-
-    final response = await http.post(
-      Uri.parse("$Baseurl/update-device"),
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer $token",
-      },
-      body: jsonEncode(payload),
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse("$Baseurl/update-device-context"),
     );
+
+    request.fields['device_id'] = deviceId;
+    request.fields['device_type'] = platform;
+    request.fields['os_version'] = osVersion;
+    request.fields['output_audio_mode'] = outputAudioMode ?? 'speaker';
+    request.fields['preferred_delivery_mode'] = preferredDeliveryMode ?? 'text';
+    request.fields['device_token'] = deviceToken ?? '';
+
+    if (fcmToken != null) {
+      request.fields['fcm_token'] = fcmToken;
+    }
+
+    request.headers['Authorization'] = 'Bearer $token';
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
 
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
-      throw Exception(
-        "Device update failed: ${error['detail'] ?? response.body}",
-      );
+      throw Exception("Update failed: ${error['detail'] ?? response.body}");
     }
 
-    print("✅ Device context updated successfully.");
+    print("✅ Device + FCM context updated together.");
   }
+
+  /// Retry FCM TOKEN info to backend
+  Future<void> retryFcmToken(String fcmToken) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    final deviceId = prefs.getString('device_id');
+
+    if (token == null || deviceId == null) {
+      throw Exception("Missing auth or device ID");
+    }
+
+    final uri = Uri.parse("$Baseurl/retry-device-fcm");
+    final request = http.MultipartRequest('POST', uri)
+      ..fields['token'] = fcmToken
+      ..fields['device_id'] = deviceId
+      ..headers['Authorization'] = 'Bearer $token';
+
+    final response = await http.Response.fromStream(await request.send());
+
+    if (response.statusCode != 200) {
+      final error = jsonDecode(response.body);
+      throw Exception("FCM update failed: ${error['detail'] ?? response.body}");
+    }
+  }
+
+
 }

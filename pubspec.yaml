@@ -106,7 +106,7 @@ flutter_launcher_icons:
   image_path: "assets/splash/neura_logo.png"
   adaptive_icon_foreground: "assets/splash/neura_logo.png"
   adaptive_icon_background: "#0E0F11"
-  min_sdk_android: 23
+  min_sdk_android: 24
  
   # To add assets to your application, add an assets section, like this:
   # assets:

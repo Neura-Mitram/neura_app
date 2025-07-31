@@ -48,10 +48,8 @@ class _MemoryScreenState extends State<MemoryScreen> {
 
   Future<void> _loadMemoryStatus() async {
     final status = await getCurrentMemoryStatus();
-    if (status != null) {
-      setState(() => memoryEnabled = status);
+    setState(() => memoryEnabled = status);
     }
-  }
 
   Future<void> _loadCachedMemory() async {
     final cached = await getCachedMemory();
@@ -207,7 +205,6 @@ class _MemoryScreenState extends State<MemoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(

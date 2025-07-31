@@ -217,8 +217,9 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
                       ...stateEntry.value.entries.expand<Widget>((cityEntry) {
                         final city = cityEntry.key;
                         if (!city.toLowerCase().contains(searchQuery) &&
-                            searchQuery.isNotEmpty)
+                            searchQuery.isNotEmpty) {
                           return [];
+                        }
                         return [
                           Padding(
                             padding: const EdgeInsets.only(
@@ -266,8 +267,9 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
                                             .toString()
                                             .toLowerCase()
                                             .contains(searchQuery) &&
-                                        searchQuery.isNotEmpty)
+                                        searchQuery.isNotEmpty) {
                                       return const SizedBox.shrink();
+                                    }
                                     final time = DateFormat(
                                       'dd MMM, hh:mm a',
                                     ).format(DateTime.parse(r['timestamp']));
@@ -279,13 +281,13 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
                                     );
                                   }).toList(),
                                 );
-                              }).toList(),
+                              }),
                             ];
-                          }).toList(),
+                          }),
                         ];
-                      }).toList(),
+                      }),
                     ];
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

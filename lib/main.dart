@@ -128,8 +128,8 @@ class NeuraApp extends StatelessWidget {
     required this.needsOnboarding,
     required this.needssosContact,
     required this.needsWakeword,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

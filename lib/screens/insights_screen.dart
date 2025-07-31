@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -89,7 +91,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
         };
       }
     } catch (e) {
-      print("❌ Error fetching insights: $e");
+      debugPrint("❌ Error fetching insights: $e");
     }
     setState(() => isLoading = false);
   }
@@ -103,7 +105,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       final bytes = Uint8List.fromList(utf8.encode(formatted));
 
       // Save as .txt using FileSaver
-      final String? path = await FileSaver.instance.saveFile(
+      final String path = await FileSaver.instance.saveFile(
         name: "neura_personality_snapshot",
         bytes: bytes,
         ext: "txt",
@@ -111,7 +113,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
         customMimeType: "text/plain",
       );
 
-      if (path != null) {
+      if (path != '') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("✅ Snapshot saved to Downloads.")),
         );

@@ -90,10 +90,15 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     try {
-      await DeviceService().updateDeviceContext(
-        outputAudioMode: "speaker",
-        preferredDeliveryMode: "text",
-      );
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken){
+        await prefs.setString('last_fcm_token', fcmToken);
+      }
+      await DeviceService().updateDeviceContextWithFcm(
+      fcmToken: fcmToken,
+      outputAudioMode: "speaker",
+      preferredDeliveryMode: "text",
+    );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -244,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen>
 }
 
 class AnimatedSmriti extends StatefulWidget {
-  const AnimatedSmriti({Key? key}) : super(key: key);
+  const AnimatedSmriti({super.key});
 
   @override
   State<AnimatedSmriti> createState() => _AnimatedSmritiState();
