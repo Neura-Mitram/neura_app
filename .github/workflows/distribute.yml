@@ -57,32 +57,37 @@ jobs:
             flutter build apk --debug
           fi
 
+      - name: 🧮 Set artifact path
+        run: |
+          if [ "$BUILD_FORMAT" = "aab" ]; then
+            echo "ARTIFACT_PATH=build/app/outputs/bundle/release/app-release.aab" >> $GITHUB_ENV
+          elif [ "$BUILD_MODE" = "release" ]; then
+            echo "ARTIFACT_PATH=build/app/outputs/flutter-apk/app-release.apk" >> $GITHUB_ENV
+          else
+            echo "ARTIFACT_PATH=build/app/outputs/flutter-apk/app-debug.apk" >> $GITHUB_ENV
+          fi
+
       - name: 📦 Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: 🚀 Upload to Firebase (release only)
-        if: env.BUILD_MODE == 'release'
+        if: ${{ env.BUILD_MODE == 'release' }}
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
           token: ${{ secrets.FIREBASE_TOKEN }}
           groups: testers
-          file: |
-            ${{ env.BUILD_FORMAT == 'aab' && 'build/app/outputs/bundle/release/app-release.aab' || 'build/app/outputs/flutter-apk/app-release.apk' }}
+          file:  ${{ env.ARTIFACT_PATH }}
           releaseNotes: "📦 Auto build from GitHub Actions (${{ env.BUILD_FORMAT }}, ${{ env.BUILD_MODE }})"
 
       - name: 🌐 Upload APK to Appetize.io (APK only)
-        if: env.BUILD_FORMAT == 'apk'
+        if: ${{ env.BUILD_FORMAT == 'apk' }}
         env:
           APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
         run: |
           echo "📤 Uploading APK to Appetize.io..."
 
-          if [ "$BUILD_MODE" = "release" ]; then
-            apk_path="build/app/outputs/flutter-apk/app-release.apk"
-          else
-            apk_path="build/app/outputs/flutter-apk/app-debug.apk"
-          fi
+          apk_path=$ARTIFACT_PATH
 
           response=$(curl -s -X POST https://upload.appetize.io/upload \
             -H "Authorization: Bearer $APPETIZE_API_TOKEN" \
