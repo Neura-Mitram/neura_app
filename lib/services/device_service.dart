@@ -114,5 +114,16 @@ class DeviceService {
     }
   }
 
+// Add this method to check if app is running on an emulator
+  Future<bool> isRunningOnEmulator() async {
+    if (!Platform.isAndroid) return false;
+
+    final deviceInfo = DeviceInfoPlugin();
+    final androidInfo = await deviceInfo.androidInfo;
+
+    return !androidInfo.isPhysicalDevice ||
+          (androidInfo.brand.toLowerCase().contains("generic")) ||
+          (androidInfo.product.toLowerCase().contains("sdk"));
+  }
 
 }

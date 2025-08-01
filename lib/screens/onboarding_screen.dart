@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../widgets/setup_progress_stepper.dart';
 import 'package:flutter/services.dart';
+import '../services/device_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -468,6 +469,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<bool> hasUsageAccess() async {
+
+    // Skip usage access check for emulator
+    if (await DeviceService().isRunningOnEmulator()) {
+      print("🧪 Emulator detected — skipping Usage Access check");
+      return true;
+    }
+    
     try {
       // ⏱️ Wait a bit to allow permission state to update
       await Future.delayed(const Duration(milliseconds: 800));
