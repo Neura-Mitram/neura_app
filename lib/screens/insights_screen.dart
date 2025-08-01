@@ -137,7 +137,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
         LinearProgressIndicator(
           value: percent,
           minHeight: 8,
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           color: theme.colorScheme.primary,
         ),
       ],

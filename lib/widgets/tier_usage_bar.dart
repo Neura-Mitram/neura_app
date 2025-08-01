@@ -33,7 +33,7 @@ class TierUsageBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: percent.clamp(0.0, 1.0),
               minHeight: 6,
-              backgroundColor: theme.colorScheme.surfaceVariant,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
               valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
             ),
           ),
