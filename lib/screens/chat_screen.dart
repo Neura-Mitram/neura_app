@@ -65,6 +65,13 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
         .read(chatControllerProvider(widget.deviceId).notifier)
         .startAmbientIfNeeded();
     _startClusterPingChecker();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "chat", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   void _setupNativeSummaryListener() {

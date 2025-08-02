@@ -44,6 +44,13 @@ class _MemoryScreenState extends State<MemoryScreen> {
         _fetchMemory();
       }
     });
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "memory", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _loadMemoryStatus() async {

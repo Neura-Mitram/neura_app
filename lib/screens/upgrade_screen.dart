@@ -29,6 +29,13 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
   void initState() {
     super.initState();
     _loadCurrentTier();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "upgrade", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _loadCurrentTier() async {

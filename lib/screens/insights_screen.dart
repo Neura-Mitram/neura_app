@@ -35,6 +35,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
     super.initState();
     _loadTogglePreference();
     _fetchInsights();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "insights", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _loadTogglePreference() async {

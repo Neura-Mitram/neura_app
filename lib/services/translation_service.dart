@@ -1,26 +1,38 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
+import '../utils/dialog_utils.dart';
 
 class TranslationService {
   static Map<String, String> _localizedStrings = {};
   static String _currentLang = 'en'; // default
 
+  static Future<void> loadScreenOnInit(BuildContext context, String screenId, 
+    {required void Function() onDone,}) async {
+    showNeuraLoading(context, "UI Loading...");
+    await loadScreen(screenId);
+    Navigator.of(context).pop(); 
+    onDone();
+  }
+
   /// Load and cache UI translations for the current user's preferred language
-  static Future<void> loadTranslations([String? langCode]) async {
+  static Future<void> loadScreen(String screenId, [String? langCode]) async {
     final prefs = await SharedPreferences.getInstance();
     final lang = langCode ?? prefs.getString('preferred_lang') ?? 'en';
-    final keys = _translationKeys;
+
+    final keys = _screenKeys[screenId];
+    if (keys == null || keys.isEmpty) return;
 
     final translations = await AuthService().translateUIStrings(
       keys: keys,
-      targetLang: lang, // ✅ Use passed-in language
+      targetLang: lang,
     );
 
-    _localizedStrings = translations;
+    _localizedStrings.addAll(translations); // ✅ Add to existing map
     _currentLang = lang;
 
-    // Cache in SharedPreferences for reuse
+    // Cache merged map
     await prefs.setString('cached_translations', jsonEncode(_localizedStrings));
   }
 
@@ -38,9 +50,10 @@ class TranslationService {
   /// Lookup translated string or fallback
   static String tr(String key) => _localizedStrings[key] ?? key;
 
-  /// All Screen UI keys
-  static const List<String> _translationKeys = [
-    // Chat + Permissions
+  /// 🔁 New: screen-based keys
+  static const Map<String, List<String>> _screenKeys = {
+    "chat": [
+     // Chat + Permissions
     "Neura’s activated. I’m {name}, with you, always.",
     "Private mode enabled.",
     "Private mode disabled.",
@@ -72,7 +85,23 @@ class TranslationService {
     "Unmute Nudges",
     "Mute Nudges",
     "Private mode expired",
+    ],
 
+    "wakeword" : [
+    // Wakeword Trainer Screen
+    "Train Wakeword",
+    "Uploading your voice samples...",
+    "Say your assistant's name (\${3 - currentStep} left)",
+    "Recording...",
+    "Record Sample \${currentStep + 1}",
+    "Upload Samples",
+    "Wakeword Trained!",
+    "Your assistant can now recognize your voice 🧠",
+    "Continue",
+    "Upload failed: {error}",
+    ],
+
+    "profile": [
     // Profile Screen
     "Your Profile",
     "Your AI Assistant",
@@ -96,14 +125,18 @@ class TranslationService {
     "FREE",
     "BASIC",
     "PRO",
+    ],
 
+    "community-reports": [
     // Community Reports Screen
     "Community Reports",
     "Toggle My Reports / Community",
     "Search city or reason...",
     "No reports found.",
     "Failed to load community reports",
+    ],
 
+    "insights": [
     // Insights Screen
     "Insights",
     "Export Personality",
@@ -121,7 +154,9 @@ class TranslationService {
     "Personality Traits",
     "No personality data available.",
     "{count} day streak",
+    ],
 
+    "plan": [
     // Manage Plan Screen
     "Manage Subscription",
     "Your Current Plan",
@@ -152,7 +187,9 @@ class TranslationService {
     "Limited features with monthly cap.",
     "Unlimited access with priority support.",
     "UNKNOWN",
+    ],
 
+    "memory": [
     // Memory Screen
     "Memory",
     "Memory Enabled",
@@ -183,7 +220,9 @@ class TranslationService {
     "Clear",
     "Memory deleted successfully.",
     "File saved to {path}",
+    ],
 
+    "unsafe-report": [
     // Unsafe Reports Screen
     "My Unsafe Reports",
     "Search city or keyword...",
@@ -200,7 +239,9 @@ class TranslationService {
     "No reports nearby",
     "Reports",
     "Jump to nearby reports",
+    ],
 
+    "nearby-sos": [
     // Nearby SOS Screen
     "❌ Auto-call failed. Please dial manually.",
     "✅ You’re marked safe",
@@ -218,7 +259,9 @@ class TranslationService {
     "I’m Safe",
     "Call for Help",
     "Report Unsafe Area",
+    ],
 
+    "unsafe-area" : [
     // Report Unsafe Area Screen
     "Report Unsafe Area",
     "Describe the unsafe activity or place:",
@@ -228,7 +271,9 @@ class TranslationService {
     "❌ Failed to submit report.",
     "⚠️ Missing token or device ID.",
     "❌ Error: {error}",
+    ],
 
+    "sos-alert" : [
     // SOS Alert Screen
     "🚨 Emergency Mode",
     "Neura has detected a distress keyword.",
@@ -240,7 +285,9 @@ class TranslationService {
     "✅ SMS sent to contacts",
     "❌ SMS error: {error}",
     "📨 Message ready. Please tap Send.",
+    ],
 
+    "sos-contact" : [
     // My SOS Contact Screen
     "My SOS Contacts",
     "No contacts added.",
@@ -255,7 +302,9 @@ class TranslationService {
     "❌ Failed to load SOS contacts",
     "❌ Failed to add contact",
     "❌ Failed to delete contact",
+    ],
 
+    "upgrade" : [
     // Upgrade Screen
     "Upgrade Plan",
     "Your Current Plan",
@@ -269,19 +318,9 @@ class TranslationService {
     "Payment Key",
     "Upgrade Now",
     "✅ Upgrade successful!",
+    ],
 
-    // Wakeword Trainer Screen
-    "Train Wakeword",
-    "Uploading your voice samples...",
-    "Say your assistant's name (\${3 - currentStep} left)",
-    "Recording...",
-    "Record Sample \${currentStep + 1}",
-    "Upload Samples",
-    "Wakeword Trained!",
-    "Your assistant can now recognize your voice 🧠",
-    "Continue",
-    "Upload failed: {error}",
-  ];
+  };
 
   static String get currentLang => _currentLang;
 }

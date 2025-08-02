@@ -31,6 +31,13 @@ class _CommunityReportsScreenState extends State<CommunityReportsScreen> {
     _fetchCommunityReports();
     _fetchCommunitySummary();
     _fetchSafeRoute();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "community-reports", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _fetchCommunityReports() async {

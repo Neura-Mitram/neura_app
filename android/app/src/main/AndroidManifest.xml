@@ -6,26 +6,27 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
-    <!-- ✅ Android 10+ foreground service types -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    
+    <!-- ✅ Required for Foreground Service on Android 10+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 
-    <!-- 📱 Optional: Handle lack of telephony gracefully -->
-    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <!-- ✅ Required for App Usage Access -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions"/>
+
+    <!-- 📱 Optional hardware config -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false"/>
 
     <application
         android:label="neura_app"
         android:icon="@mipmap/ic_launcher">
-    <!-- android:name="${applicationName}"-->
 
-
-     <!-- ✅ Main Activity -->
+        <!-- ✅ Main Flutter Activity -->
         <activity
             android:name="com.byshiladityamallick.neura.MainActivity"
             android:exported="true"
@@ -46,24 +47,23 @@
             </intent-filter>
         </activity>
 
-        <!-- ✅ Flutter Plugin Registrant -->
-        <meta-data android:name="flutterEmbedding" android:value="2" />
+        <!-- Flutter Plugin Version -->
+        <meta-data android:name="flutterEmbedding" android:value="2"/>
 
-        <!-- 🔒 Optional: ForegroundService declaration (we’ll add class next) -->
+        <!-- ✅ Your services -->
         <service
             android:name=".WakewordForegroundService"
             android:exported="false"
-            android:foregroundServiceType="microphone|location" />
+            android:foregroundServiceType="microphone|location"/>
 
         <service
             android:name=".OverlayDotService"
-            android:exported="false" />
+            android:exported="false"/>
 
         <service
             android:name=".LocationMonitorService"
             android:enabled="true"
-            android:exported="false" />
-
+            android:exported="false"/>
 
         <service
             android:name=".MyFirebaseMessagingService"
@@ -73,35 +73,34 @@
             </intent-filter>
         </service>
 
+        <!-- ✅ Foreground App Detector (no bind permission needed!) -->
         <service
             android:name=".ForegroundAppDetector"
             android:enabled="true"
             android:exported="false"/>
 
-
+        <!-- ✅ Boot Receiver -->
         <receiver
+            android:name=".BootReceiver"
             android:enabled="true"
-            android:exported="true"
-            android:name=".BootReceiver">
+            android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
 
     </application>
 
-    <!-- 🧠 Required by Flutter's text processing plugin -->
+    <!-- ✅ Flutter Plugins: Text Processing + SMS -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-    </queries>
-    <queries>
-        <provider android:authorities="sms" />
+        <provider android:authorities="sms"/>
         <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:mimeType="vnd.android-dir/mms-sms" />
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="vnd.android-dir/mms-sms"/>
         </intent>
     </queries>
 

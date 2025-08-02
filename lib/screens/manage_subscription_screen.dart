@@ -39,6 +39,13 @@ class _ManageSubscriptionScreenState extends State<ManageSubscriptionScreen> {
   void initState() {
     super.initState();
     _loadTier();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "plan", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _loadTier() async {
