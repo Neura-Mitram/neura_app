@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen>
         await player.setVolume(1.0);
         await player.setAsset('assets/audio/welcome_neura.wav');
         await Future.delayed(Duration(milliseconds: 100));
-        player.play(); // not awaited to avoid stalling UI
+        player.play(); // not awaited
         debugPrint("🎧 Welcome voice started.");
       } catch (e) {
         debugPrint("❌ Playback error: $e");
@@ -135,133 +135,128 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-  final theme = Theme.of(context);
-  final screenWidth = MediaQuery.of(context).size.width;
-  final screenHeight = MediaQuery.of(context).size.height;
+    final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
 
-  final logoSize = screenWidth * 0.45;
+    final logoSize = screenWidth * 0.45;
 
-  return Scaffold(
-    backgroundColor: theme.scaffoldBackgroundColor,
-    body: SafeArea(
-      child: SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: screenHeight),
-          child: IntrinsicHeight(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // ✅ Stepper Progress Bar
-                  const SetupProgressStepper(currentStep: SetupStep.login),
-                  const SizedBox(height: 32),
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: screenHeight),
+            child: IntrinsicHeight(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SetupProgressStepper(currentStep: SetupStep.login),
+                    const SizedBox(height: 32),
 
-                  // 🔵 App Logo
-                  Container(
-                    width: logoSize,
-                    height: logoSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.primary.withAlpha(153),
-                          blurRadius: 50,
-                          spreadRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/splash/neura_logo.png',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Title
-                  Text(
-                    "Welcome to Neura Mitram",
-                    style: theme.textTheme.titleLarge,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
-
-                  // 🔠 Animated App Name
-                  const AnimatedSmriti(),
-                  const SizedBox(height: 50),
-
-                  // 🔘 Login Button
-                  SlideTransition(
-                    position: _slideAnimation,
-                    child: Container(
+                    Container(
+                      width: logoSize,
+                      height: logoSize,
                       decoration: BoxDecoration(
+                        shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: theme.colorScheme.primary.withOpacity(0.4),
-                            blurRadius: 20,
-                            spreadRadius: 1,
+                            color: theme.colorScheme.primary.withAlpha(153),
+                            blurRadius: 50,
+                            spreadRadius: 5,
                           ),
                         ],
-                        borderRadius: BorderRadius.circular(30),
                       ),
-                      child: ElevatedButton(
-                        onPressed: handleAnonymousLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/splash/neura_logo.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    Text(
+                      "Welcome to Neura Mitram",
+                      style: theme.textTheme.titleLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+
+                    const AnimatedSmriti(),
+                    const SizedBox(height: 50),
+
+                    FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: SlideTransition(
+                        position: _slideAnimation,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.colorScheme.primary.withOpacity(0.4),
+                                blurRadius: 20,
+                                spreadRadius: 1,
+                              ),
+                            ],
                             borderRadius: BorderRadius.circular(30),
                           ),
-                        ),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 14.0,
-                            horizontal: 40,
+                          child: ElevatedButton(
+                            onPressed: handleAnonymousLogin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: 14.0,
+                                horizontal: 40,
+                              ),
+                              child: Text("Start Activate Neura"),
+                            ),
                           ),
-                          child: Text("Start Activate Neura"),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // 🟠 Error Message
-                  if (message.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 6,
-                        children: [
-                          Icon(
-                            Icons.warning,
-                            color: theme.colorScheme.error,
-                            size: 20,
-                          ),
-                          Text(
-                            message,
-                            style: TextStyle(color: theme.colorScheme.error),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                    if (message.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 6,
+                          children: [
+                            Icon(
+                              Icons.warning,
+                              color: theme.colorScheme.error,
+                              size: 20,
+                            ),
+                            Text(
+                              message,
+                              style: TextStyle(color: theme.colorScheme.error),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 }
 
 class AnimatedSmriti extends StatefulWidget {
