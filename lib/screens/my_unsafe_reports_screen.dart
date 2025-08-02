@@ -32,6 +32,13 @@ class _MyUnsafeReportsScreenState extends State<MyUnsafeReportsScreen> {
     super.initState();
     _fetchReports();
     _fetchUnsafeSummary();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "unsafe-report", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _fetchReports() async {

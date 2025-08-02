@@ -111,6 +111,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadProfile();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "profile", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _loadProfile() async {
@@ -245,10 +252,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // 🔄 Save locally
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setString('preferred_lang', lang['code']!);
-                  await TranslationService.loadTranslations(lang['code']!);
 
                   // 🔗 Update backend
                   await _updatePreferredLangBackend(lang['code']!);
+
+                  await TranslationService.loadScreenOnInit(context, "profile", onDone: () {
+                    setState(() {}); // Rebuild UI with new translations
+                  });
+
 
                   final rtlLangs = ['ar', 'he', 'fa', 'ur'];
                   final willBeRtl = rtlLangs.contains(lang['code']);

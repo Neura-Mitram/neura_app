@@ -12,37 +12,44 @@ class SetupProgressStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final steps = [Icons.login, Icons.explore, Icons.contact_phone, Icons.mic];
+    final totalSteps = steps.length;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(steps.length * 2 - 1, (i) {
-        if (i.isOdd) {
-          // connector line between icons
-          final stepIndex = (i - 1) ~/ 2;
-          final isCompleted = stepIndex < currentIndex;
-          return Container(
-            width: 50,
-            height: 2,
-            color: isCompleted ? Colors.green : Colors.grey.shade300,
-          );
-        } else {
-          final index = i ~/ 2;
-          final isCompleted = index < currentIndex;
-          final isCurrent = index == currentIndex;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        final connectorWidth = (availableWidth - (totalSteps * 50)) / (totalSteps - 1);
 
-          final circleColor = isCompleted
-              ? Colors.green
-              : isCurrent
-              ? const Color(0xFF2F67B5)
-              : Colors.grey.shade300;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(totalSteps * 2 - 1, (i) {
+            if (i.isOdd) {
+              final stepIndex = (i - 1) ~/ 2;
+              final isCompleted = stepIndex < currentIndex;
+              return Container(
+                width: connectorWidth.clamp(10, 50),
+                height: 2,
+                color: isCompleted ? Colors.green : Colors.grey.shade300,
+              );
+            } else {
+              final index = i ~/ 2;
+              final isCompleted = index < currentIndex;
+              final isCurrent = index == currentIndex;
 
-          return CircleAvatar(
-            radius: 25,
-            backgroundColor: circleColor,
-            child: Icon(steps[index], size: 30, color: Colors.white),
-          );
-        }
-      }),
+              final circleColor = isCompleted
+                  ? Colors.green
+                  : isCurrent
+                      ? const Color(0xFF2F67B5)
+                      : Colors.grey.shade300;
+
+              return CircleAvatar(
+                radius: 25,
+                backgroundColor: circleColor,
+                child: Icon(steps[index], size: 30, color: Colors.white),
+              );
+            }
+          }),
+        );
+      },
     );
   }
 }

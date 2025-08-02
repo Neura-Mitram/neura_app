@@ -33,6 +33,13 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
     super.initState();
     _recorder = FlutterSoundRecorder();
     _initializeRecorder();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "wakeword", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _initializeRecorder() async {

@@ -21,6 +21,13 @@ class _SosContactScreenState extends State<SosContactScreen> {
   void initState() {
     super.initState();
     _fetchContacts();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      TranslationService.loadScreenOnInit(context, "sos-contact", onDone: () {
+        setState(() {});
+      });
+    });
   }
 
   Future<void> _fetchContacts() async {
@@ -172,9 +179,9 @@ class _SosContactScreenState extends State<SosContactScreen> {
     }
   }
 
-  Widget _nextButton() {
+  Widget _nextButton(bool isSmall) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(isSmall ? 12.0 : 16.0),
       child: ElevatedButton(
         onPressed: contacts.isNotEmpty
             ? () async {
@@ -183,7 +190,10 @@ class _SosContactScreenState extends State<SosContactScreen> {
                 Navigator.pushNamed(context, '/wakeword');
               }
             : null,
-        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size.fromHeight(50),
+          textStyle: TextStyle(fontSize: isSmall ? 14 : 16),
+        ),
         child: Text(TranslationService.tr("Next")),
       ),
     );
@@ -192,41 +202,54 @@ class _SosContactScreenState extends State<SosContactScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmall = screenWidth < 360;
 
     return Scaffold(
-      appBar: AppBar(title: Text(TranslationService.tr("My SOS Contacts"))),
+      appBar: AppBar(
+        title: Text(
+          TranslationService.tr("My SOS Contacts"),
+          style: TextStyle(fontSize: isSmall ? 18 : 20),
+        ),
+      ),
       body: Column(
         children: [
-          // 🟢 Stepper at top
           const SetupProgressStepper(currentStep: SetupStep.sos),
-          const SizedBox(height: 12),
-
-          // 🔄 Contact list or loader
+          SizedBox(height: isSmall ? 8 : 12),
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : contacts.isEmpty
-                ? Center(
-                    child: Text(TranslationService.tr("No contacts added.")),
-                  )
-                : ListView.builder(
-                    itemCount: contacts.length,
-                    itemBuilder: (context, index) {
-                      final c = contacts[index];
-                      return ListTile(
-                        leading: Icon(
-                          Icons.contact_phone,
-                          color: theme.colorScheme.primary,
+                    ? Center(
+                        child: Text(
+                          TranslationService.tr("No contacts added."),
+                          style: TextStyle(fontSize: isSmall ? 14 : 16),
                         ),
-                        title: Text(c['name'] ?? ''),
-                        subtitle: Text(c['phone'] ?? ''),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () => _deleteContact(c['id']),
-                        ),
-                      );
-                    },
-                  ),
+                      )
+                    : ListView.builder(
+                        itemCount: contacts.length,
+                        itemBuilder: (context, index) {
+                          final c = contacts[index];
+                          return ListTile(
+                            leading: Icon(
+                              Icons.contact_phone,
+                              color: theme.colorScheme.primary,
+                            ),
+                            title: Text(
+                              c['name'] ?? '',
+                              style: TextStyle(fontSize: isSmall ? 14 : 16),
+                            ),
+                            subtitle: Text(
+                              c['phone'] ?? '',
+                              style: TextStyle(fontSize: isSmall ? 12 : 14),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () => _deleteContact(c['id']),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -235,7 +258,7 @@ class _SosContactScreenState extends State<SosContactScreen> {
         backgroundColor: theme.colorScheme.primary,
         child: const Icon(Icons.add),
       ),
-      bottomNavigationBar: _nextButton(),
+      bottomNavigationBar: _nextButton(isSmall),
     );
   }
 }

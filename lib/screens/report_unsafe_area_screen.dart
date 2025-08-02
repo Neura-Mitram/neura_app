@@ -18,6 +18,20 @@ class _ReportUnsafeAreaScreenState extends State<ReportUnsafeAreaScreen> {
   bool isSubmitting = false;
   String? statusMessage;
 
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "unsafe-area", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
+  }
+
+
   @override
   void dispose() {
     _controller.dispose();

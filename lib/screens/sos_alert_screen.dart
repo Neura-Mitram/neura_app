@@ -113,6 +113,13 @@ class _SosAlertScreenState extends State<SosAlertScreen> {
     if (widget.backgroundMic) {
       _startBackgroundRecording();
     }
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "sos-alert", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   @override

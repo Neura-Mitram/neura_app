@@ -135,18 +135,24 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  final theme = Theme.of(context);
+  final screenWidth = MediaQuery.of(context).size.width;
+  final screenHeight = MediaQuery.of(context).size.height;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Center(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
+  final logoSize = screenWidth * 0.45;
+
+  return Scaffold(
+    backgroundColor: theme.scaffoldBackgroundColor,
+    body: SafeArea(
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: screenHeight),
+          child: IntrinsicHeight(
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -156,8 +162,8 @@ class _LoginScreenState extends State<LoginScreen>
 
                   // 🔵 App Logo
                   Container(
-                    width: 200,
-                    height: 200,
+                    width: logoSize,
+                    height: logoSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       boxShadow: [
@@ -181,6 +187,7 @@ class _LoginScreenState extends State<LoginScreen>
                   Text(
                     "Welcome to Neura Mitram",
                     style: theme.textTheme.titleLarge,
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 10),
 
@@ -222,24 +229,28 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
+
+                  // 🟠 Error Message
                   if (message.isNotEmpty)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.warning,
-                          color: theme.colorScheme.error,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
+                        children: [
+                          Icon(
+                            Icons.warning,
+                            color: theme.colorScheme.error,
+                            size: 20,
+                          ),
+                          Text(
                             message,
                             style: TextStyle(color: theme.colorScheme.error),
                             textAlign: TextAlign.center,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                 ],
               ),
@@ -247,8 +258,10 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 }
 
 class AnimatedSmriti extends StatefulWidget {
@@ -319,7 +332,7 @@ class _AnimatedSmritiState extends State<AnimatedSmriti> {
             );
           },
           child: Text(
-            showLatin ? "Mano Mitram" : "मनः मित्रः।",
+            showLatin ? "Neura Mitram" : "न्यूर मित्रम्:।",
             key: ValueKey(showLatin),
             style: theme.textTheme.titleLarge?.copyWith(
               color: theme.colorScheme.primary,

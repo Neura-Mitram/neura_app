@@ -46,7 +46,7 @@ class ForegroundAppDetector : Service() {
                 lastApp = packageName
                 sendEventToBackend(packageName)
             }
-            handler.postDelayed(this, 10000) // every 10 sec
+            handler.postDelayed(this, 30000) // every 30 sec
         }
     }
 

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../utils/dialog_utils.dart';
-import '../services/translation_service.dart';
 import '../utils/restart_utils.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -147,8 +146,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       final actualLang = response['preferred_lang'] ?? selectedLangCode;
       await prefs.setString('preferred_lang', actualLang);
 
-      // ✅ Load translations for preferred language
-      await TranslationService.loadTranslations(actualLang);
 
       // 🛠️ Restart app if RTL directionality changed
       final rtlLangs = ['ar', 'he', 'fa', 'ur'];
@@ -470,13 +467,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<bool> hasUsageAccess() async {
-
     // Skip usage access check for emulator
     if (await DeviceService().isRunningOnEmulator()) {
       print("🧪 Emulator detected — skipping Usage Access check");
       return true;
     }
-    
+
     try {
       // ⏱️ Wait a bit to allow permission state to update
       await Future.delayed(const Duration(milliseconds: 800));
@@ -507,82 +503,80 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Widget _voiceOption({
-    required String imagePath,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required String label,
-  }) {
-    final theme = Theme.of(context);
+  required String imagePath,
+  required bool isSelected,
+  required VoidCallback onTap,
+  required String label,
+  required double size, // 🔑 
+}) {
+  final theme = Theme.of(context);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          AnimatedBuilder(
-            animation: _animationController,
-            builder: (context, child) {
-              final alpha = (_glowAnimation.value * 255).round();
-              return Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: theme.primaryColor.withAlpha(alpha),
-                            blurRadius: 30,
-                            spreadRadius: 4,
-                          ),
-                        ]
-                      : [],
-                  border: Border.all(
-                    color: isSelected ? theme.primaryColor : theme.dividerColor,
-                    width: 3,
-                  ),
+  return GestureDetector(
+    onTap: onTap,
+    child: Column(
+      children: [
+        AnimatedBuilder(
+          animation: _animationController,
+          builder: (context, child) {
+            final alpha = (_glowAnimation.value * 255).round();
+            return Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: theme.primaryColor.withAlpha(alpha),
+                          blurRadius: 30,
+                          spreadRadius: 4,
+                        ),
+                      ]
+                    : [],
+                border: Border.all(
+                  color: isSelected ? theme.primaryColor : theme.dividerColor,
+                  width: 3,
                 ),
-                child: ClipOval(
-                  child: Image.asset(
-                    imagePath,
-                    width: 100,
-                    height: 100,
-                    fit: BoxFit.cover,
-                  ),
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  imagePath,
+                  width: size, // 👈 Use responsive size
+                  height: size,
+                  fit: BoxFit.cover,
                 ),
-              );
-            },
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        Container(
+          margin: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? theme.primaryColor
+                : theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? theme.primaryColor : theme.dividerColor,
+              width: 1.5,
+            ),
           ),
-          const SizedBox(height: 8),
-          Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
               color: isSelected
-                  ? theme
-                        .primaryColor // 💙 Solid primary color background
-                  : theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isSelected ? theme.primaryColor : theme.dividerColor,
-                width: 1.5,
-              ),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: isSelected
-                    ? theme
-                          .colorScheme
-                          .onPrimary // white text on colored background
-                    : theme.textTheme.bodyMedium!.color,
-              ),
+                  ? theme.colorScheme.onPrimary
+                  : theme.textTheme.bodyMedium!.color,
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   @override
   void initState() {
@@ -615,193 +609,211 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  final theme = Theme.of(context);
+  final screenWidth = MediaQuery.of(context).size.width;
+  final screenHeight = MediaQuery.of(context).size.height;
+  final isSmall = screenWidth < 360;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {},
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          title: Text(
-            "Meet Your AI Assistant",
-            style: theme.textTheme.titleLarge,
-          ),
-          backgroundColor: theme.appBarTheme.backgroundColor,
-          foregroundColor: theme.appBarTheme.foregroundColor,
-          automaticallyImplyLeading: false,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () => logoutUser(context),
-              tooltip: "Logout",
-            ),
-          ],
+  final avatarSize = isSmall ? 80.0 : 100.0;
+
+  return PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, result) {},
+    child: Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text(
+          "Meet Your AI Assistant",
+          style: theme.textTheme.titleLarge,
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // 🟢 Stepper added at top
-              const SetupProgressStepper(currentStep: SetupStep.onboarding),
-              const SizedBox(height: 24),
-
-              const SizedBox(height: 20),
-              Text("Set Up Your Neura", style: theme.textTheme.headlineSmall),
-              const SizedBox(height: 12),
-              Text(
-                "Personalize your assistant's name and voice preference.",
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.hintColor,
-                ),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: aiNameController,
-                decoration: InputDecoration(
-                  labelText: "Assistant Name",
-                  labelStyle: TextStyle(color: theme.primaryColor),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.primaryColor, width: 2),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.dividerColor),
-                  ),
-                  prefixIcon: Icon(
-                    Icons.person_outline,
-                    color: theme.primaryColor,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 30),
-              Text(
-                "Choose Your Assistant's Voice",
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        foregroundColor: theme.appBarTheme.foregroundColor,
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => logoutUser(context),
+            tooltip: "Logout",
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: screenHeight),
+          child: IntrinsicHeight(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _voiceOption(
-                    label: "Male",
-                    imagePath: 'assets/avatars/male_listening.png',
-                    isSelected: selectedVoice == 'male',
-                    onTap: () => setState(() => selectedVoice = 'male'),
-                  ),
-                  _voiceOption(
-                    label: "Female",
-                    imagePath: 'assets/avatars/female_listening.png',
-                    isSelected: selectedVoice == 'female',
-                    onTap: () => setState(() => selectedVoice = 'female'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
+                  const SetupProgressStepper(currentStep: SetupStep.onboarding),
+                  SizedBox(height: isSmall ? 16 : 24),
 
-              GestureDetector(
-                onTap: () async {
-                  final selected = await showModalBottomSheet<String>(
-                    context: context,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(16),
+                  Text(
+                    "Set Up Your Neura",
+                    style: isSmall
+                        ? theme.textTheme.headlineSmall?.copyWith(fontSize: 20)
+                        : theme.textTheme.headlineSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Personalize your assistant's name and voice preference.",
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.hintColor,
+                    ),
+                  ),
+                  SizedBox(height: isSmall ? 24 : 32),
+
+                  // Assistant Name Field
+                  TextField(
+                    controller: aiNameController,
+                    decoration: InputDecoration(
+                      labelText: "Assistant Name",
+                      labelStyle: TextStyle(color: theme.primaryColor),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: theme.primaryColor, width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: theme.dividerColor),
+                      ),
+                      prefixIcon: Icon(Icons.person_outline, color: theme.primaryColor),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  // Voice Selection
+                  Text(
+                    "Choose Your Assistant's Voice",
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 16,
+                    runSpacing: 12,
+                    children: [
+                      _voiceOption(
+                        label: "Male",
+                        imagePath: 'assets/avatars/male_listening.png',
+                        isSelected: selectedVoice == 'male',
+                        onTap: () => setState(() => selectedVoice = 'male'),
+                        size: avatarSize,
+                      ),
+                      _voiceOption(
+                        label: "Female",
+                        imagePath: 'assets/avatars/female_listening.png',
+                        isSelected: selectedVoice == 'female',
+                        onTap: () => setState(() => selectedVoice = 'female'),
+                        size: avatarSize,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 40),
+
+                  // Language Picker
+                  GestureDetector(
+                    onTap: () async {
+                      final selected = await showModalBottomSheet<String>(
+                        context: context,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        builder: (_) => ListView(
+                          shrinkWrap: true,
+                          children: languages.map((lang) {
+                            final emoji = getFlagEmojiFromLangCode(lang['code']!);
+                            return ListTile(
+                              leading: Text(emoji, style: theme.textTheme.titleLarge),
+                              title: Text(lang['label']!),
+                              onTap: () => Navigator.pop(context, lang['code']),
+                            );
+                          }).toList(),
+                        ),
+                      );
+
+                      if (selected != null) {
+                        setState(() => selectedLangCode = selected);
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: "Preferred Language",
+                        prefixIcon: const Icon(Icons.language),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        languages.firstWhere((l) => l['code'] == selectedLangCode)['label']!,
+                        style: theme.textTheme.bodyLarge,
                       ),
                     ),
-                    builder: (_) => ListView(
-                      shrinkWrap: true,
-                      children: languages.map((lang) {
-                        final emoji = getFlagEmojiFromLangCode(lang['code']!);
-                        return ListTile(
-                          leading: Text(
-                            emoji,
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          title: Text(lang['label']!),
-                          onTap: () => Navigator.pop(context, lang['code']),
-                        );
-                      }).toList(),
-                    ),
-                  );
+                  ),
+                  const SizedBox(height: 30),
 
-                  if (selected != null) {
-                    setState(() => selectedLangCode = selected);
-                  }
-                },
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: "Preferred Language",
-                    prefixIcon: const Icon(Icons.language),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  // Smart Detect Toggle
+                  SwitchListTile(
+                    value: smartTrackingEnabled,
+                    onChanged: (value) => setState(() => smartTrackingEnabled = value),
+                    title: const Text("Enable Smart Detect Mode"),
+                    subtitle: const Text(
+                      "Allow Neura to detect which app you're using (e.g., Gmail, Spotify) to offer helpful, context-aware replies.",
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    activeColor: theme.primaryColor,
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (!permissionsAccepted)
+                    Text(
+                      "Please allow permissions to proceed.",
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                  const SizedBox(height: 10),
+
+                  // Continue Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: (isSaving || !permissionsAccepted) ? null : handleSave,
+                      icon: isSaving
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.onPrimary,
+                              ),
+                            )
+                          : const Icon(Icons.arrow_forward),
+                      label: Text(
+                        "Continue to Neura",
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        textStyle: const TextStyle(fontSize: 16),
+                        backgroundColor: theme.primaryColor,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    languages.firstWhere(
-                      (l) => l['code'] == selectedLangCode,
-                    )['label']!,
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 30),
-              // 🔽 INSERT HERE 🔽
-              SwitchListTile(
-                value: smartTrackingEnabled,
-                onChanged: (value) {
-                  setState(() => smartTrackingEnabled = value);
-                },
-                title: const Text("Enable Smart Detect Mode"),
-                subtitle: const Text(
-                  "Allow Neura to detect which app you're using (e.g., Gmail, Spotify) to offer helpful, context-aware replies.",
-                  style: TextStyle(fontSize: 12),
-                ),
-                activeColor: theme.primaryColor,
-              ),
-              const SizedBox(height: 16),
-              if (!permissionsAccepted)
-                Text(
-                  "Please allow permissions to proceed.",
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: (isSaving || !permissionsAccepted)
-                      ? null
-                      : handleSave,
-                  icon: isSaving
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.onPrimary,
-                          ),
-                        )
-                      : const Icon(Icons.arrow_forward),
-                  label: Text(
-                    "Continue to Neura",
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onPrimary,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    textStyle: const TextStyle(fontSize: 16),
-                    backgroundColor: theme.primaryColor,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 }

@@ -32,6 +32,13 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
       _autoDialIfTierAllowed();
     });
     _checkUnsafeCluster();
+
+    // ✅ Load translations for preferred language
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    TranslationService.loadScreenOnInit(context, "nearby-sos", onDone: () {
+      setState(() {}); // optional if you want to refresh UI
+      });
+    });
   }
 
   Future<void> _autoDialIfTierAllowed() async {

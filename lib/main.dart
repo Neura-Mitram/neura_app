@@ -15,7 +15,7 @@ import 'screens/sos_alert_screen.dart';
 import 'screens/nearby_sos_screen.dart';
 import 'screens/community_reports_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/WakewordTrainerScreen.dart';
+import 'screens/wakeword_trainer_screen.dart';
 import 'screens/memory_screen.dart';
 import 'services/translation_service.dart';
 import 'utils/restart_utils.dart';
