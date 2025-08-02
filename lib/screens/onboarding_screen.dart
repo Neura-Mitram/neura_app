@@ -467,6 +467,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<bool> hasUsageAccess() async {
+
     // Skip usage access check for emulator
     if (await DeviceService().isRunningOnEmulator()) {
       print("🧪 Emulator detected — skipping Usage Access check");
