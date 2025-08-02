@@ -115,6 +115,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   late Animation<double> _glowAnimation;
 
   Future<void> handleSave() async {
+    showNeuraLoading(context, "Neura is processing...");
     setState(() {
       isSaving = true;
       errorMessage = "";
