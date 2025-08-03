@@ -17,7 +17,6 @@ import 'screens/community_reports_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/wakeword_trainer_screen.dart';
 import 'screens/memory_screen.dart';
-import 'services/translation_service.dart';
 import 'utils/restart_utils.dart';
 import 'package:flutter/services.dart';
 import '../services/ws_service.dart';
@@ -27,15 +26,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final platform = MethodChannel('neura/wakeword');
 final platformMic = MethodChannel('com.neura/mic_control');
 final platformSos = MethodChannel('sos.screen.trigger');
-final platformNudge = MethodChannel('neura/native/nudge');
 
-Future<void> startWakewordService() async {
-  try {
-    await platform.invokeMethod('startWakewordService');
-  } catch (e) {
-    debugPrint("🚨 Error starting WakewordService: $e");
-  }
-}
 
 Future<void> stopOverlayDotService() async {
   try {
@@ -46,45 +37,40 @@ Future<void> stopOverlayDotService() async {
   }
 }
 
-Future<void> sendNudgeToNative(String emoji, String text, String lang) async {
-  try {
-    await platformNudge.invokeMethod('showNudgeBubble', {
-      'emoji': emoji,
-      'text': text,
-      'lang': lang,
-    });
-  } catch (e) {
-    print('Failed to show native nudge: $e');
-  }
-}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize translation cache async *without blocking UI*
-  final translationInit = TranslationService.restoreCachedTranslations();
-
   final prefs = await SharedPreferences.getInstance();
   final deviceId = prefs.getString('device_id');
   final tier = prefs.getString('tier') ?? "free";
   final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
   final sosContactCompleted = prefs.getBool('sos_contacts_completed') ?? false;
   final wakewordCompleted = prefs.getBool('wakeword_completed') ?? false;
-  final activeMode = prefs.getString('active_mode') ?? "manual";
 
   bool isLoggedIn = deviceId != null && deviceId.isNotEmpty;
   bool needsOnboarding = !onboardingCompleted;
   bool needssosContact = !sosContactCompleted;
   bool needsWakeword = !wakewordCompleted;
 
+  await stopOverlayDotService();
+  
+  runApp(
+    RestartWidget(
+      child: NeuraApp(
+        isLoggedIn: isLoggedIn,
+        userTier: tier,
+        needsOnboarding: needsOnboarding,
+        needssosContact: needssosContact,
+        needsWakeword: needsWakeword,
+      ),
+    ),
+  );
+
   debugPrint(
     "🧠 deviceId: $deviceId | onboarding: $onboardingCompleted | sos: $sosContactCompleted | wakeword: $wakewordCompleted",
   );
 
-  if (deviceId != null && wakewordCompleted && activeMode == "ambient") {
-    await startWakewordService();
-    await stopOverlayDotService();
-  }
 
   platformMic.setMethodCallHandler((call) async {
     if (call.method == "startMic") {
@@ -102,19 +88,6 @@ void main() async {
       navigatorKey.currentState?.pushNamed('/sos-alert', arguments: args);
     }
   });
-
-  runApp(
-    RestartWidget(
-      child: NeuraApp(
-        isLoggedIn: isLoggedIn,
-        userTier: tier,
-        needsOnboarding: needsOnboarding,
-        needssosContact: needssosContact,
-        needsWakeword: needsWakeword,
-      ),
-    ),
-  );
-  await translationInit;
 }
 
 class NeuraApp extends StatelessWidget {

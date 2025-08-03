@@ -27,6 +27,7 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
   bool isRecording = false;
   FlutterSoundRecorder? _recorder;
   final platform = MethodChannel('neura/wakeword');
+  final platformNudge = MethodChannel('neura/native/nudge');
 
   @override
   void initState() {
@@ -181,10 +182,26 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
   Future<void> startWakewordService() async {
     try {
       await platform.invokeMethod('startWakewordService');
+      final prefs = await SharedPreferences.getInstance();
+      final lang = prefs.getString('preferred_lang') ?? 'en';
+      await sendNudgeToNative("🚀", "Wakeword trained!", lang);
     } catch (e) {
       debugPrint("🚨 Error starting WakewordService: $e");
     }
   }
+
+  Future<void> sendNudgeToNative(String emoji, String text, String lang) async {
+  try {
+    await platformNudge.invokeMethod('showNudgeBubble', {
+      'emoji': emoji,
+      'text': text,
+      'lang': lang,
+    });
+  } catch (e) {
+    print('Failed to show native nudge: $e');
+  }
+}
+
 
   @override
   void dispose() {
