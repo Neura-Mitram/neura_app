@@ -29,6 +29,9 @@ import okhttp3.Response
 import okio.IOException
 import org.json.JSONArray
 import org.json.JSONObject
+import android.app.PendingIntent
+import android.app.AlarmManager
+
 
 private var ttsEngine: TextToSpeech? = null
 private lateinit var unlockReceiver: BroadcastReceiver
