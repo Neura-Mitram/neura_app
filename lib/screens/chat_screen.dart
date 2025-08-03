@@ -67,11 +67,13 @@ class ChatScreenState extends ConsumerState<ChatScreen> {
     _startClusterPingChecker();
 
     // ✅ Load translations for preferred language
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-    TranslationService.loadScreenOnInit(context, "chat", onDone: () {
-      setState(() {}); // optional if you want to refresh UI
-      });
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await TranslationService.restoreCachedTranslations();
+    await TranslationService.loadScreenOnInit(context, "chat", onDone: () {
+    setState(() {});
+  });
+});
+
   }
 
   void _setupNativeSummaryListener() {

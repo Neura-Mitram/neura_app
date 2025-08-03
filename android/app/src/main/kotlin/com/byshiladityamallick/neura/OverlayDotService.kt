@@ -589,7 +589,6 @@ class OverlayDotService : Service() {
     }
 
 
-
     private fun saveSummaryToCache(type: String, emoji: String, text: String) {
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         val existingJson = prefs.getString("cached_summary_list", "[]") ?: "[]"
@@ -641,21 +640,43 @@ class OverlayDotService : Service() {
         return START_STICKY
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        dotIcon?.clearAnimation()
-        if (floatingView?.windowToken != null) {
-            windowManager?.removeView(floatingView)
+    override fun onTaskRemoved(rootIntent: Intent?) {
+            super.onTaskRemoved(rootIntent)
+
+        val restartIntent = Intent(applicationContext, OverlayDotService::class.java)
+        restartIntent.putExtra("check_nudge_fallback", true)
+
+        val pendingIntent = PendingIntent.getService(
+            this,
+            1,
+            restartIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT
+        )
+
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.set(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + 1500, // delay 1.5 sec
+            pendingIntent
+        )
         }
-        sosBubbleView?.let { windowManager?.removeView(it) }
-        hiBubbleView?.let { windowManager?.removeView(it) }
-        unregisterReceiver(wakewordReceiver)
-        unregisterReceiver(unlockReceiver)
 
+
+        override fun onDestroy() {
+            super.onDestroy()
+            dotIcon?.clearAnimation()
+            if (floatingView?.windowToken != null) {
+                windowManager?.removeView(floatingView)
+            }
+            sosBubbleView?.let { windowManager?.removeView(it) }
+            hiBubbleView?.let { windowManager?.removeView(it) }
+            unregisterReceiver(wakewordReceiver)
+            unregisterReceiver(unlockReceiver)
+
+        }
+
+        override fun onBind(intent: Intent?): IBinder? = null
     }
-
-    override fun onBind(intent: Intent?): IBinder? = null
-}
 
 object MuteManager {
     var nudgesMuted: Boolean = false

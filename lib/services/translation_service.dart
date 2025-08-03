@@ -7,6 +7,7 @@ import '../utils/dialog_utils.dart';
 class TranslationService {
   static Map<String, String> _localizedStrings = {};
   static String _currentLang = 'en'; // default
+  static bool _restoredOnce = false;
 
   static Future<void> loadScreenOnInit(BuildContext context, String screenId, 
     {required void Function() onDone,}) async {
@@ -44,6 +45,9 @@ class TranslationService {
 
   /// Restore from local cache (e.g., app start)
   static Future<void> restoreCachedTranslations() async {
+    if (_restoredOnce) return;
+    _restoredOnce = true;
+
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('cached_translations');
     final lang = prefs.getString('preferred_lang') ?? 'en';
