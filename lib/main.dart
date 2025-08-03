@@ -88,7 +88,6 @@ void main() async {
       navigatorKey.currentState?.pushNamed('/sos-alert', arguments: args);
     }
   });
-  
 }
 
 class NeuraApp extends StatelessWidget {
