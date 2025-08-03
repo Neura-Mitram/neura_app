@@ -18,6 +18,7 @@ class TranslationService {
 
   /// Load and cache UI translations for the current user's preferred language
   static Future<void> loadScreen(String screenId, [String? langCode]) async {
+
   final prefs = await SharedPreferences.getInstance();
   final lang = langCode ?? prefs.getString('preferred_lang') ?? 'en';
 
