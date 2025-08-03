@@ -18,23 +18,28 @@ class TranslationService {
 
   /// Load and cache UI translations for the current user's preferred language
   static Future<void> loadScreen(String screenId, [String? langCode]) async {
-    final prefs = await SharedPreferences.getInstance();
-    final lang = langCode ?? prefs.getString('preferred_lang') ?? 'en';
+  final prefs = await SharedPreferences.getInstance();
+  final lang = langCode ?? prefs.getString('preferred_lang') ?? 'en';
 
-    final keys = _screenKeys[screenId];
-    if (keys == null || keys.isEmpty) return;
+  final keys = _screenKeys[screenId];
+  if (keys == null || keys.isEmpty) return;
 
-    final translations = await AuthService().translateUIStrings(
-      keys: keys,
-      targetLang: lang,
-    );
+  // ✅ Skip API if all keys already present for current language
+  final alreadyLoaded = keys.every((k) => _localizedStrings.containsKey(k));
+  final langAlreadyLoaded = _currentLang == lang;
+  if (alreadyLoaded && langAlreadyLoaded) return;
 
-    _localizedStrings.addAll(translations); // ✅ Add to existing map
-    _currentLang = lang;
+  // ⏳ Otherwise, fetch from API
+  final translations = await AuthService().translateUIStrings(
+    keys: keys,
+    targetLang: lang,
+  );
 
-    // Cache merged map
-    await prefs.setString('cached_translations', jsonEncode(_localizedStrings));
-  }
+  _localizedStrings.addAll(translations);
+  _currentLang = lang;
+
+  await prefs.setString('cached_translations', jsonEncode(_localizedStrings));
+}
 
   /// Restore from local cache (e.g., app start)
   static Future<void> restoreCachedTranslations() async {

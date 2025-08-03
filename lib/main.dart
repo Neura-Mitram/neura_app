@@ -60,10 +60,11 @@ Future<void> sendNudgeToNative(String emoji, String text, String lang) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize translation cache async *without blocking UI*
+  final translationInit = TranslationService.restoreCachedTranslations();
+
   final prefs = await SharedPreferences.getInstance();
-
-  await TranslationService.restoreCachedTranslations();
-
   final deviceId = prefs.getString('device_id');
   final tier = prefs.getString('tier') ?? "free";
   final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
@@ -113,6 +114,7 @@ void main() async {
       ),
     ),
   );
+  await translationInit;
 }
 
 class NeuraApp extends StatelessWidget {
