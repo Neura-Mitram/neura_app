@@ -19,14 +19,13 @@ import 'screens/wakeword_trainer_screen.dart';
 import 'screens/memory_screen.dart';
 import 'utils/restart_utils.dart';
 import 'package:flutter/services.dart';
-import '../services/ws_service.dart';
+import 'services/ws_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 final platform = MethodChannel('neura/wakeword');
 final platformMic = MethodChannel('com.neura/mic_control');
 final platformSos = MethodChannel('sos.screen.trigger');
-
 
 Future<void> stopOverlayDotService() async {
   try {
@@ -37,41 +36,24 @@ Future<void> stopOverlayDotService() async {
   }
 }
 
-
 void main() async {
+  final stopwatch = Stopwatch()..start();
   WidgetsFlutterBinding.ensureInitialized();
-  
+  debugPrint("⏱️ After ensureInitialized: ${stopwatch.elapsed}");
   final prefs = await SharedPreferences.getInstance();
+  debugPrint("⏱️ After SharedPreferences: ${stopwatch.elapsed}");
   final deviceId = prefs.getString('device_id');
   final tier = prefs.getString('tier') ?? "free";
   final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
   final sosContactCompleted = prefs.getBool('sos_contacts_completed') ?? false;
   final wakewordCompleted = prefs.getBool('wakeword_completed') ?? false;
 
-  bool isLoggedIn = deviceId != null && deviceId.isNotEmpty;
-  bool needsOnboarding = !onboardingCompleted;
-  bool needssosContact = !sosContactCompleted;
-  bool needsWakeword = !wakewordCompleted;
+  final isLoggedIn = deviceId != null && deviceId.isNotEmpty;
+  final needsOnboarding = !onboardingCompleted;
+  final needssosContact = !sosContactCompleted;
+  final needsWakeword = !wakewordCompleted;
 
-  await stopOverlayDotService();
-  
-  runApp(
-    RestartWidget(
-      child: NeuraApp(
-        isLoggedIn: isLoggedIn,
-        userTier: tier,
-        needsOnboarding: needsOnboarding,
-        needssosContact: needssosContact,
-        needsWakeword: needsWakeword,
-      ),
-    ),
-  );
-
-  debugPrint(
-    "🧠 deviceId: $deviceId | onboarding: $onboardingCompleted | sos: $sosContactCompleted | wakeword: $wakewordCompleted",
-  );
-
-
+  // 🧠 Setup MethodCallHandlers BEFORE runApp
   platformMic.setMethodCallHandler((call) async {
     if (call.method == "startMic") {
       final deviceId = prefs.getString('device_id');
@@ -84,10 +66,31 @@ void main() async {
 
   platformSos.setMethodCallHandler((call) async {
     if (call.method == "openSosScreen") {
-      final args = Map<String, dynamic>.from(call.arguments as Map);
-      navigatorKey.currentState?.pushNamed('/sos-alert', arguments: args);
+      final args = call.arguments;
+      if (args is Map) {
+        navigatorKey.currentState?.pushNamed('/sos-alert',
+            arguments: Map<String, dynamic>.from(args));
+      }
     }
   });
+
+  await stopOverlayDotService();
+
+  debugPrint(
+    "🧠 deviceId: $deviceId | onboarding: $onboardingCompleted | sos: $sosContactCompleted | wakeword: $wakewordCompleted",
+  );
+
+  runApp(
+    RestartWidget(
+      child: NeuraApp(
+        isLoggedIn: isLoggedIn,
+        userTier: tier,
+        needsOnboarding: needsOnboarding,
+        needssosContact: needssosContact,
+        needsWakeword: needsWakeword,
+      ),
+    ),
+  );
 }
 
 class NeuraApp extends StatelessWidget {
@@ -206,6 +209,7 @@ class ChatLoader extends StatelessWidget {
                     onPressed: () async {
                       final prefs = await SharedPreferences.getInstance();
                       await prefs.clear();
+		      if (!context.mounted) return;
                       Navigator.pushReplacementNamed(context, '/');
                     },
                     child: const Text("Go to Login"),
@@ -296,7 +300,7 @@ class _SplashRedirectorState extends State<SplashRedirector> {
     }
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     return const NeuraLoader(message: "Neura is getting ready...");
     //   return const Scaffold(
