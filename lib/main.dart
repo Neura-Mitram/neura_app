@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/insights_screen.dart';
-import 'screens/manage_subscription_screen.dart';
-import 'screens/sos_contact_screen.dart';
+import 'package:neura_app/screens/insights_screen.dart';
+import 'package:neura_app/screens/manage_subscription_screen.dart';
+import 'package:neura_app/screens/sos_contact_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/login_screen.dart';
 import 'screens/chat_screen.dart';
@@ -209,7 +209,7 @@ class ChatLoader extends StatelessWidget {
                     onPressed: () async {
                       final prefs = await SharedPreferences.getInstance();
                       await prefs.clear();
-		                if (!context.mounted) return;
+		      if (!context.mounted) return;
                       Navigator.pushReplacementNamed(context, '/');
                     },
                     child: const Text("Go to Login"),
@@ -303,5 +303,9 @@ class _SplashRedirectorState extends State<SplashRedirector> {
 @override
   Widget build(BuildContext context) {
     return const NeuraLoader(message: "Neura is getting ready...");
+    //   return const Scaffold(
+    //     backgroundColor: Colors.white,
+    //     body: Center(child: CircularProgressIndicator()),
+    //   );
   }
 }
