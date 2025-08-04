@@ -1,113 +1,78 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import 'theme.dart';
+import 'screens/chat_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/sos_contact_screen.dart';
+import 'screens/wakeword_trainer_screen.dart';
+import 'screens/upgrade_screen.dart';
 import 'screens/insights_screen.dart';
 import 'screens/manage_subscription_screen.dart';
-import 'screens/sos_contact_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'screens/login_screen.dart';
-import 'screens/chat_screen.dart';
-import 'screens/upgrade_screen.dart';
-import 'screens/onboarding_screen.dart';
-import 'theme.dart';
-import 'widgets/neura_loader.dart';
+import 'screens/profile_screen.dart';
 import 'screens/report_unsafe_area_screen.dart';
 import 'screens/my_unsafe_reports_screen.dart';
-import 'screens/sos_alert_screen.dart';
 import 'screens/nearby_sos_screen.dart';
 import 'screens/community_reports_screen.dart';
-import 'screens/profile_screen.dart';
-import 'screens/wakeword_trainer_screen.dart';
 import 'screens/memory_screen.dart';
+import 'screens/sos_alert_screen.dart';
 import 'utils/restart_utils.dart';
-import 'package:flutter/services.dart';
+import 'widgets/neura_loader.dart';
 import 'services/ws_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
 final platform = MethodChannel('neura/wakeword');
 final platformMic = MethodChannel('com.neura/mic_control');
 final platformSos = MethodChannel('sos.screen.trigger');
 
-Future<void> stopOverlayDotService() async {
-  try {
-    await platform.invokeMethod('stopOverlayDotService');
-    debugPrint("🛑 OverlayDotService stopped");
-  } catch (e) {
-    debugPrint("❌ Failed to stop OverlayDotService: $e");
-  }
-}
-
-void main() async {
-  final stopwatch = Stopwatch()..start();
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  debugPrint("⏱️ After ensureInitialized: ${stopwatch.elapsed}");
-  final prefs = await SharedPreferences.getInstance();
-  debugPrint("⏱️ After SharedPreferences: ${stopwatch.elapsed}");
-  final deviceId = prefs.getString('device_id');
-  final tier = prefs.getString('tier') ?? "free";
-  final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
-  final sosContactCompleted = prefs.getBool('sos_contacts_completed') ?? false;
-  final wakewordCompleted = prefs.getBool('wakeword_completed') ?? false;
-
-  final isLoggedIn = deviceId != null && deviceId.isNotEmpty;
-  final needsOnboarding = !onboardingCompleted;
-  final needssosContact = !sosContactCompleted;
-  final needsWakeword = !wakewordCompleted;
-
-  // 🧠 Setup MethodCallHandlers BEFORE runApp
-  platformMic.setMethodCallHandler((call) async {
-    if (call.method == "startMic") {
-      final deviceId = prefs.getString('device_id');
-      if (deviceId != null) {
-        debugPrint("🎙️ Mic trigger received — launching WsService stream...");
-        await WsService().startStreaming(deviceId);
-      }
-    }
-  });
-
-  platformSos.setMethodCallHandler((call) async {
-    if (call.method == "openSosScreen") {
-      final args = call.arguments;
-      if (args is Map) {
-        navigatorKey.currentState?.pushNamed('/sos-alert',
-            arguments: Map<String, dynamic>.from(args));
-      }
-    }
-  });
-
-  await stopOverlayDotService();
-
-  debugPrint(
-    "🧠 deviceId: $deviceId | onboarding: $onboardingCompleted | sos: $sosContactCompleted | wakeword: $wakewordCompleted",
-  );
-
-  runApp(
-    RestartWidget(
-      child: NeuraApp(
-        isLoggedIn: isLoggedIn,
-        userTier: tier,
-        needsOnboarding: needsOnboarding,
-        needssosContact: needssosContact,
-        needsWakeword: needsWakeword,
-      ),
-    ),
-  );
+  runApp(const RestartWidget(child: NeuraApp()));
 }
 
 class NeuraApp extends StatelessWidget {
-  final bool isLoggedIn;
-  final String userTier;
-  final bool needsOnboarding;
-  final bool needssosContact;
-  final bool needsWakeword;
+  const NeuraApp({super.key});
 
-  const NeuraApp({
-    required this.isLoggedIn,
-    required this.userTier,
-    required this.needsOnboarding,
-    required this.needssosContact,
-    required this.needsWakeword,
-    super.key,
-  });
+  Future<Map<String, dynamic>> _loadInitialConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final deviceId = prefs.getString('device_id');
+    final tier = prefs.getString('tier') ?? "free";
+    final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+    final sosContactCompleted = prefs.getBool('sos_contacts_completed') ?? false;
+    final wakewordCompleted = prefs.getBool('wakeword_completed') ?? false;
+
+    platformMic.setMethodCallHandler((call) async {
+      if (call.method == "startMic") {
+        final id = prefs.getString('device_id');
+        if (id != null) {
+          debugPrint("🎙️ Mic trigger received — launching WsService stream...");
+          await WsService().startStreaming(id);
+        }
+      }
+    });
+
+    platformSos.setMethodCallHandler((call) async {
+      if (call.method == "openSosScreen") {
+        final args = call.arguments;
+        if (args is Map) {
+          navigatorKey.currentState?.pushNamed('/sos-alert',
+              arguments: Map<String, dynamic>.from(args));
+        }
+      }
+    });
+
+    await platform.invokeMethod('stopOverlayDotService');
+
+    return {
+      'isLoggedIn': deviceId != null && deviceId.isNotEmpty,
+      'userTier': tier,
+      'needsOnboarding': !onboardingCompleted,
+      'needssosContact': !sosContactCompleted,
+      'needsWakeword': !wakewordCompleted,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,11 +83,23 @@ class NeuraApp extends StatelessWidget {
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
       navigatorKey: navigatorKey,
-      home: SplashRedirector(
-        isLoggedIn: isLoggedIn,
-        needsOnboarding: needsOnboarding,
-        needssosContact: needssosContact,
-        needsWakeword: needsWakeword,
+      home: FutureBuilder<Map<String, dynamic>>(
+        future: _loadInitialConfig(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const NeuraLoader(message: "Neura is getting ready...");
+          } else if (snapshot.hasError) {
+            return const Scaffold(body: Center(child: Text("⚠️ Failed to load config")));
+          }
+
+          final config = snapshot.data!;
+          return SplashRedirector(
+            isLoggedIn: config['isLoggedIn'],
+            needsOnboarding: config['needsOnboarding'],
+            needssosContact: config['needssosContact'],
+            needsWakeword: config['needsWakeword'],
+          );
+        },
       ),
       onGenerateRoute: (settings) {
         if (settings.name == '/sos-alert') {
@@ -163,67 +140,6 @@ class NeuraApp extends StatelessWidget {
   }
 }
 
-class ChatLoader extends StatelessWidget {
-  const ChatLoader({super.key});
-
-  Future<String?> _getDeviceId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('device_id');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return FutureBuilder<String?>(
-      future: _getDeviceId(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const NeuraLoader(message: "Neura is waking up...");
-        } else if (snapshot.hasData && snapshot.data != null) {
-          return ChatScreen(deviceId: snapshot.data!);
-        } else {
-          return Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    "Oops... Something went wrong 😕",
-                    textAlign: TextAlign.center,
-                    style: textTheme.titleLarge?.copyWith(
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "We couldn’t find your device ID.\nPlease login again to continue.",
-                    textAlign: TextAlign.center,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.clear();
-		      if (!context.mounted) return;
-                      Navigator.pushReplacementNamed(context, '/');
-                    },
-                    child: const Text("Go to Login"),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-      },
-    );
-  }
-}
-
 class SplashRedirector extends StatefulWidget {
   final bool isLoggedIn;
   final bool needsOnboarding;
@@ -246,66 +162,78 @@ class _SplashRedirectorState extends State<SplashRedirector> {
   @override
   void initState() {
     super.initState();
-    try {
-      debugPrint("🧠 OnboardingScreen init...");
-      _decideRoute();
-    } catch (e, st) {
-      debugPrint("❌ Onboarding init crash: $e\n$st");
-    }
+    _decideRoute();
   }
 
   Future<void> _decideRoute() async {
     await Future.delayed(const Duration(milliseconds: 1500));
 
-    String? nextRoute;
+    String route;
+    if (!widget.isLoggedIn) {
+      route = '/login';
+    } else if (widget.needsOnboarding) {
+      route = '/onboarding';
+    } else if (widget.needssosContact) {
+      route = '/sos-contact';
+    } else if (widget.needsWakeword) {
+      route = '/wakeword';
+    } else {
+      route = '/chat';
+    }
 
-    try {
-      if (!widget.isLoggedIn) {
-        // 🔹 No device ID yet → Show login screen
-        nextRoute = '/login';
-      } else if (widget.needsOnboarding) {
-        // 🔹 Logged in, but onboarding not completed
-        nextRoute = '/onboarding';
-      } else if (widget.needssosContact) {
-        // 🔹 Onboarding done, but no SOS contact set
-        nextRoute = '/sos-contact';
-      } else if (widget.needsWakeword) {
-        // 🔹 SOS done, but no wakeword set
-        nextRoute = '/wakeword';
-      } else {
-        // ✅ Everything set → Go to chat
-        nextRoute = '/chat';
-      }
-
-      debugPrint("🚀 Navigating to $nextRoute");
-
-      // ✅ Only navigate if the widget is still in the tree
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, nextRoute);
-      }
-    } catch (e) {
-      debugPrint("❌ Navigation failed to $nextRoute: $e");
-
-      // 🛑 Show at least a fallback screen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const Scaffold(
-            body: Center(
-              child: Text("⚠️ Failed to navigate — please reinstall."),
-            ),
-          ),
-        ),
-      );
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, route);
     }
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
-    return const NeuraLoader(message: "Neura is getting ready...");
-    //   return const Scaffold(
-    //     backgroundColor: Colors.white,
-    //     body: Center(child: CircularProgressIndicator()),
-    //   );
+    return const NeuraLoader(message: "Neura is waking up...");
+  }
+}
+
+class ChatLoader extends StatelessWidget {
+  const ChatLoader({super.key});
+
+  Future<String?> _getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('device_id');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _getDeviceId(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const NeuraLoader(message: "Neura is waking up...");
+        } else if (snapshot.hasData && snapshot.data != null) {
+          return ChatScreen(deviceId: snapshot.data!);
+        } else {
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text("Oops... Something went wrong 😕"),
+                  const SizedBox(height: 8),
+                  const Text("We couldn’t find your device ID.\nPlease login again."),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.clear();
+                      if (!context.mounted) return;
+                      Navigator.pushReplacementNamed(context, '/');
+                    },
+                    child: const Text("Go to Login"),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      },
+    );
   }
 }
