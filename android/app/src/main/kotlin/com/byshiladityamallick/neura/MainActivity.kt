@@ -245,8 +245,7 @@ class MainActivity : FlutterActivity() {
 
 
 
-        // ✅ Send cached summaries to Flutter on app open
-        pushChatSummariesToFlutter()
+        
     }
 
     private fun playTtsStream(url: String) {
@@ -399,6 +398,13 @@ class MainActivity : FlutterActivity() {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
     }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        // ✅ Send cached summaries to Flutter on app open
+        pushChatSummariesToFlutter() // UI is ready now
+    }
+    
 
     override fun onDestroy() {
         tts?.stop()
