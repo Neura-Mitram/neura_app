@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:neura_app/screens/insights_screen.dart';
-import 'package:neura_app/screens/manage_subscription_screen.dart';
-import 'package:neura_app/screens/sos_contact_screen.dart';
+import 'screens/insights_screen.dart';
+import 'screens/manage_subscription_screen.dart';
+import 'screens/sos_contact_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/login_screen.dart';
 import 'screens/chat_screen.dart';
