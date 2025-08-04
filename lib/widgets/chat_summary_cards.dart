@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:neura_app/controllers/chat_provider.dart';
+import '../controllers/chat_provider.dart';
 
 class ChatSummaryCards extends ConsumerWidget {
   final String type;
