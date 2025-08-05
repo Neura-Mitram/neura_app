@@ -1,4 +1,3 @@
-// ignore_for_file: deprecated_member_use_from_same_package
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -104,33 +103,27 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   Future<void> _exportPersonality(Map<String, dynamic> data) async {
-    try {
-      // Format the data as indented JSON
-      final formatted = const JsonEncoder.withIndent('  ').convert(data);
+  try {
+    final formatted = const JsonEncoder.withIndent('  ').convert(data);
+    final bytes = Uint8List.fromList(utf8.encode(formatted));
 
-      // Convert to bytes for file saving
-      final bytes = Uint8List.fromList(utf8.encode(formatted));
+    final String? path = await FileSaver.instance.saveFile(
+      name: "neura_personality_snapshot.txt", // ✅ include extension in name
+      bytes: bytes,
+      mimeType: MimeType.text, // ✅ or MimeType.other with custom
+    );
 
-      // Save as .txt using FileSaver
-      final String path = await FileSaver.instance.saveFile(
-        name: "neura_personality_snapshot",
-        bytes: bytes,
-        ext: "txt",
-        mimeType: MimeType.other,
-        customMimeType: "text/plain",
+    if (path != null && path.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✅ Snapshot saved to Downloads.")),
       );
-
-      if (path != '') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Snapshot saved to Downloads.")),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("❌ Failed to save file: $e")));
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("❌ Failed to save file: $e")),
+    );
   }
+}
 
   Widget _progressBar(String label, int used, int total) {
     final theme = Theme.of(context);

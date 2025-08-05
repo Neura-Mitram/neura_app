@@ -1,2 +1,19 @@
 {
+  "dart.flutterSdkPath": "/opt/flutter",
+  "dart.sdkPath": "/opt/flutter/bin/cache/dart-sdk",
+  "dart.checkForSdkUpdates": false,
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-17",
+      "path": "/usr/lib/jvm/java-17-openjdk-amd64"
+    }
+  ],
+  "android.emulator.showWindow": false,
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "kotlin.languageServer.path": "/usr/bin/kotlin-language-server",
+  "kotlin.languageServer.experimental.classpath.enabled": true,
+  "kotlin.languageServer.debug.classpath": [
+    "/opt/android-sdk/platforms/android-34/android.jar"
+  ],
+  "androidSdk.path": "/opt/android-sdk"
 }

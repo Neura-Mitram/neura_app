@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'dart:isolate';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'theme.dart';
 import 'screens/chat_screen.dart';
 import 'screens/login_screen.dart';
@@ -17,7 +20,6 @@ import 'screens/nearby_sos_screen.dart';
 import 'screens/community_reports_screen.dart';
 import 'screens/memory_screen.dart';
 import 'screens/sos_alert_screen.dart';
-import 'utils/restart_utils.dart';
 import 'widgets/neura_loader.dart';
 import 'services/ws_service.dart';
 
@@ -26,66 +28,65 @@ final platform = MethodChannel('neura/wakeword');
 final platformMic = MethodChannel('com.neura/mic_control');
 final platformSos = MethodChannel('sos.screen.trigger');
 String? globalDeviceId;
+String? globalUserTier; // Added global tier storage
+DateTime? lastSosCall;
 
-
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const RestartWidget(child: NeuraApp()));
+// Top-level function for isolate
+void _startStreamingIsolate(String deviceId) {
+  WsService().startStreaming(deviceId);
 }
 
-class NeuraApp extends StatelessWidget {
+void restartApp(BuildContext context) {
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (context) => const NeuraApp()),
+    (route) => false,
+  );
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const NeuraApp());
+}
+
+class NeuraApp extends StatefulWidget {
   const NeuraApp({super.key});
 
-  Future<Map<String, dynamic>> _loadInitialConfig() async {
-  final prefs = await SharedPreferences.getInstance();
-
-  final deviceId = prefs.getString('device_id');
-  // ADD This For Global Device ID Store to Reuse
-  globalDeviceId = deviceId;
-  
-  final tier = prefs.getString('tier') ?? "free";
-  final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
-  final sosContactCompleted = prefs.getBool('sos_contacts_completed') ?? false;
-  final wakewordCompleted = prefs.getBool('wakeword_completed') ?? false;
-
-  // Defer this after first frame
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _setupPlatformHandlers(prefs);
-  });
- 
-  return {
-    'isLoggedIn': deviceId != null && deviceId.isNotEmpty,
-    'userTier': tier,
-    'needsOnboarding': !onboardingCompleted,
-    'needssosContact': !sosContactCompleted,
-    'needsWakeword': !wakewordCompleted,
-  };
+  @override
+  State<NeuraApp> createState() => _NeuraAppState();
 }
 
-  void _setupPlatformHandlers(SharedPreferences prefs) {
-    platform.invokeMethod('stopOverlayDotService');
+class _NeuraAppState extends State<NeuraApp> {
 
-    platformMic.setMethodCallHandler((call) async {
-      if (call.method == "startMic") {
-        final id = globalDeviceId;
-        if (id != null) {
-          debugPrint("🎙️ Mic trigger received — launching WsService stream...");
-          await WsService().startStreaming(id);
-        }
-      }
-    });
+  Future<Map<String, dynamic>> _loadInitialConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Load all required onboarding flags and user tier
+    final deviceId = prefs.getString('device_id');
+    final tier = prefs.getString('tier') ?? "free"; // Restored tier
+    final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+    final sosContactCompleted = prefs.getBool('sos_contacts_completed') ?? false;
+    final wakewordCompleted = prefs.getBool('wakeword_completed') ?? false;
 
-    platformSos.setMethodCallHandler((call) async {
-      if (call.method == "openSosScreen") {
-        final args = call.arguments;
-        if (args is Map) {
-          navigatorKey.currentState?.pushNamed('/sos-alert',
-              arguments: Map<String, dynamic>.from(args));
-        }
-      }
-    });
+    globalDeviceId = deviceId;
+    globalUserTier = tier; // Set global tier
+    
+    return {
+      'isLoggedIn': deviceId != null && deviceId.isNotEmpty,
+      'userTier': tier, // Return tier in config
+      'needsOnboarding': !onboardingCompleted,
+      'needssosContact': !sosContactCompleted,
+      'needsWakeword': !wakewordCompleted,
+    };
   }
 
+  @override
+  void dispose() {
+    // Clean up platform handlers
+    platformMic.setMethodCallHandler(null);
+    platformSos.setMethodCallHandler(null);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -101,21 +102,42 @@ class NeuraApp extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const NeuraLoader(message: "Neura is getting ready...");
-          } else if (snapshot.hasError) {
-            return const Scaffold(body: Center(child: Text("⚠️ Failed to load config")));
+          }
+          
+          if (snapshot.hasError) {
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    const Text("Configuration Error", style: TextStyle(fontSize: 18)),
+                    const SizedBox(height: 8),
+                    Text(snapshot.error.toString(), textAlign: TextAlign.center),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () => restartApp(context),
+                      child: const Text("Restart App"),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           final config = snapshot.data!;
+          
+          
           return SplashRedirector(
-            isLoggedIn: config['isLoggedIn'],
-            needsOnboarding: config['needsOnboarding'],
-            needssosContact: config['needssosContact'],
-            needsWakeword: config['needsWakeword'],
+            isLoggedIn: config['isLoggedIn'] as bool,
+            userTier: config['userTier'] as String, // Pass tier to redirector
+            needsOnboarding: config['needsOnboarding'] as bool,
+            needssosContact: config['needssosContact'] as bool,
+            needsWakeword: config['needsWakeword'] as bool,
           );
         },
       ),
-
-
       onGenerateRoute: (settings) {
         if (settings.name == '/sos-alert') {
           final args = settings.arguments as Map<String, dynamic>? ?? {};
@@ -157,6 +179,7 @@ class NeuraApp extends StatelessWidget {
 
 class SplashRedirector extends StatefulWidget {
   final bool isLoggedIn;
+  final String userTier; // Added tier parameter
   final bool needsOnboarding;
   final bool needssosContact;
   final bool needsWakeword;
@@ -164,6 +187,7 @@ class SplashRedirector extends StatefulWidget {
   const SplashRedirector({
     super.key,
     required this.isLoggedIn,
+    required this.userTier, // Added tier
     required this.needsOnboarding,
     required this.needssosContact,
     required this.needsWakeword,
@@ -177,12 +201,11 @@ class _SplashRedirectorState extends State<SplashRedirector> {
   @override
   void initState() {
     super.initState();
-    _decideRoute();
+    // Route immediately without delay
+    WidgetsBinding.instance.addPostFrameCallback((_) => _decideRoute());
   }
 
-  Future<void> _decideRoute() async {
-    await Future.delayed(const Duration(milliseconds: 1500));
-
+  void _decideRoute() {
     String route;
     if (!widget.isLoggedIn) {
       route = '/login';
@@ -207,14 +230,102 @@ class _SplashRedirectorState extends State<SplashRedirector> {
   }
 }
 
-class ChatLoader extends StatelessWidget {
+class ChatLoader extends StatefulWidget {
   const ChatLoader({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final id = globalDeviceId;
+  State<ChatLoader> createState() => _ChatLoaderState();
+}
 
-    if (id == null || id.isEmpty) {
+class _ChatLoaderState extends State<ChatLoader> {
+  bool _isLoading = true;
+  bool handlersInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+    _setupPlatformHandlers();
+  }
+
+  void _setupPlatformHandlers() {
+    if (handlersInitialized) return;
+    handlersInitialized = true;
+
+    // Stop overlay service
+    platform.invokeMethod('stopOverlayDotService').catchError((e) {
+      debugPrint("Overlay service error: $e");
+    });
+
+    // Mic handler
+    platformMic.setMethodCallHandler((call) async {
+      if (call.method == "startMic" && globalDeviceId != null) {
+        debugPrint("Mic trigger received - starting isolate");
+        Isolate.spawn(_startStreamingIsolate, globalDeviceId!);
+      }
+      return null;
+    });
+
+    // SOS handler
+    platformSos.setMethodCallHandler((call) async {
+      if (call.method == "openSosScreen") {
+        final now = DateTime.now();
+        if (lastSosCall != null && 
+            now.difference(lastSosCall!) < const Duration(seconds: 5)) {
+          return;
+        }
+        lastSosCall = now;
+
+        final args = call.arguments is Map 
+            ? Map<String, dynamic>.from(call.arguments as Map) 
+            : {};
+        
+        if (navigatorKey.currentState != null) {
+          navigatorKey.currentState?.pushNamed('/sos-alert', arguments: args);
+        }
+      }
+      return null;
+    });
+  }
+
+  Future<void> _initializeApp() async {
+  bool firebaseFailed = false;
+
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint("🔥 Firebase init failed: $e");
+    firebaseFailed = true;
+  }
+
+  try {
+    await SharedPreferences.getInstance();
+  } catch (e) {
+    debugPrint("⚠️ SharedPreferences init error: $e");
+  }
+
+  if (!mounted) return;
+
+  if (firebaseFailed) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('⚠️ Firebase services unavailable. Some features may not work.'),
+        backgroundColor: Colors.redAccent,
+        duration: Duration(seconds: 3),
+      ),
+    );
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const NeuraLoader(message: "Waking Neura...");
+    }
+
+    if (globalDeviceId == null || globalDeviceId!.isEmpty) {
       return Scaffold(
         body: Center(
           child: Column(
@@ -222,7 +333,7 @@ class ChatLoader extends StatelessWidget {
             children: [
               const Text("Oops... Something went wrong 😕"),
               const SizedBox(height: 8),
-              const Text("We couldn’t find your device ID.\nPlease login again."),
+              const Text("We couldn't find your device ID.\nPlease login again."),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () async {
@@ -237,8 +348,11 @@ class ChatLoader extends StatelessWidget {
           ),
         ),
       );
-    } else {
-      return ChatScreen(deviceId: id);
     }
+
+    return ChatScreen(
+      deviceId: globalDeviceId!,
+      userTier: globalUserTier ?? "free",
+    );
   }
 }
