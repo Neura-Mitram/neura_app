@@ -271,7 +271,9 @@ class _ChatLoaderState extends State<ChatLoader> {
       if (call.method == "openSosScreen") {
         final now = DateTime.now();
         if (lastSosCall != null && 
-            now.difference(lastSosCall!) < const Duration(seconds: 5)) return;
+            now.difference(lastSosCall!) < const Duration(seconds: 5)) {
+          return;
+        }
         lastSosCall = now;
 
         final args = call.arguments is Map 
