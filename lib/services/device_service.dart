@@ -13,6 +13,15 @@ class DeviceService {
     return "unknown";
   }
 
+  /// Returns Android SDK version (API level) or 0 if not Android
+  Future<int> get sdkVersion async {
+    if (!Platform.isAndroid) return 0;
+    
+    final deviceInfo = DeviceInfoPlugin();
+    final androidInfo = await deviceInfo.androidInfo;
+    return androidInfo.version.sdkInt;
+  }
+
   /// Returns OS version string
   Future<String> _getOsVersion() async {
     final deviceInfo = DeviceInfoPlugin();

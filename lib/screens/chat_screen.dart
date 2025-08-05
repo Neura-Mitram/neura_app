@@ -27,7 +27,7 @@ import 'package:flutter/services.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String deviceId;
-  const ChatScreen({super.key, required this.deviceId});
+  const ChatScreen({super.key, required this.deviceId, required String userTier});
 
   @override
   ConsumerState<ChatScreen> createState() => ChatScreenState();

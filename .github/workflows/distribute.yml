@@ -1,4 +1,4 @@
-name: Distribute Neura Build
+name: Build & Distribute Neura
 
 on:
   workflow_dispatch:
@@ -26,35 +26,72 @@ env:
 
 jobs:
   build:
-    name: Build & Distribute Neura
+    name: 🚀 Build & Distribute
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: 🔁 Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # For better versioning
+
+      - name: ⚙️ Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: 📦 Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            /usr/local/lib/flutter/.pub-cache
+            android/gradle-wrapper
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
 
       - name: ⚙️ Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.32.8"
+          channel: 'stable'
+          cache: true
+          cache-key: 'flutter-pub-cache'
+          cache-path: '~/.pub-cache'
+
+      - name: 🔐 Write google-services.json
+        run: |
+          mkdir -p android/app
+          echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
+          echo "✅ Google services configured"
 
       - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: 🔐 Write google-services.json
-        run: echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
+      - name: 🔑 Configure signing keys (Release only)
+        if: ${{ env.BUILD_MODE == 'release' }}
+        run: |
+          echo '${{ secrets.ANDROID_KEYSTORE }}' > android/keystore.jks
+          echo "storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=../keystore.jks" >> android/key.properties
 
       - name: 🏗️ Build APK or AAB
         run: |
           echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode..."
+          
           if [ "$BUILD_MODE" = "release" ]; then
             if [ "$BUILD_FORMAT" = "apk" ]; then
-              flutter build apk --release
+              flutter build apk --release --split-per-abi --no-shrink
             else
-              flutter build appbundle --release
+              flutter build appbundle --release --no-shrink
             fi
           else
-            flutter build apk --debug
+            flutter build apk --debug --split-per-abi
           fi
 
       - name: 🧮 Set artifact path
@@ -62,26 +99,34 @@ jobs:
           if [ "$BUILD_FORMAT" = "aab" ]; then
             echo "ARTIFACT_PATH=build/app/outputs/bundle/release/app-release.aab" >> $GITHUB_ENV
           elif [ "$BUILD_MODE" = "release" ]; then
-            echo "ARTIFACT_PATH=build/app/outputs/flutter-apk/app-release.apk" >> $GITHUB_ENV
+            echo "ARTIFACT_PATH=build/app/outputs/apk/release/app-release.apk" >> $GITHUB_ENV
           else
-            echo "ARTIFACT_PATH=build/app/outputs/flutter-apk/app-debug.apk" >> $GITHUB_ENV
+            echo "ARTIFACT_PATH=build/app/outputs/apk/debug/app-debug.apk" >> $GITHUB_ENV
           fi
+          echo "ARTIFACT_NAME=Neura-${{ env.BUILD_MODE }}-${{ env.BUILD_FORMAT }}-$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
 
-      - name: 📦 Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: 🔒 Code signing verification (Release)
+        if: ${{ env.BUILD_MODE == 'release' }}
+        run: |
+          if [ "$BUILD_FORMAT" = "apk" ]; then
+            apksigner verify --verbose ${{ env.ARTIFACT_PATH }} || exit 1
+          else
+            jarsigner -verify -verbose -certs ${{ env.ARTIFACT_PATH }} || exit 1
+          fi
 
       - name: 🚀 Upload to Firebase (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        uses: wzieba/Firebase-Distribution-Github-Action@v2
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
           token: ${{ secrets.FIREBASE_TOKEN }}
           groups: testers
           file: ${{ env.ARTIFACT_PATH }}
-          releaseNotes: "📦 Auto build from GitHub Actions (${{ env.BUILD_FORMAT }}, ${{ env.BUILD_MODE }})"
+          releaseNotes: "🚀 Neura v1.0.0+1 (${{ env.BUILD_FORMAT }}) | Built: $(date +'%Y-%m-%d %H:%M')"
 
-      - name: 💾 Upload APK/AAB to GitHub
+      - name: 📦 Upload artifact to GitHub
         uses: actions/upload-artifact@v4
         with:
-          name: Neura-${{ env.BUILD_MODE }}-${{ env.BUILD_FORMAT }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.ARTIFACT_PATH }}
+          retention-days: 7
