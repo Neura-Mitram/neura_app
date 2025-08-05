@@ -23,6 +23,9 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven("https://jitpack.io") // ✅ Needed for flutter_sound
+
+        // ✅ Flutter engine artifacts (critical for successful build)
+        maven { url "https://storage.googleapis.com/download.flutter.io" }
     }
 }
 

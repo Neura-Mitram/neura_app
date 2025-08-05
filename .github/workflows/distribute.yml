@@ -73,6 +73,9 @@ jobs:
       - name: 📦 Install Flutter dependencies
         run: flutter pub get
 
+      - name: 📥 Pre-cache Flutter engine artifacts
+        run: flutter precache --android --${{ env.BUILD_MODE }}
+
       - name: 🔑 Configure signing keys (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
         run: |

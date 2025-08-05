@@ -25,6 +25,14 @@
 
 # AndroidX Lifecycle
 -keep class androidx.lifecycle.** { *; }
+-keep class androidx.work.** { *; }
+-keep class androidx.multidex.** { *; }
+-dontwarn androidx.**
+
+# Kotlin Coroutines
+-keep class kotlinx.coroutines.** { *; }
+-dontwarn kotlinx.coroutines.**
+
 
 # Native Methods (Critical!)
 -keepclasseswithmembernames class * {
