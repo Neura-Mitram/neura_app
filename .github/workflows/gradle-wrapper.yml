@@ -8,8 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     name: 🔨 Generate Gradle Wrapper
 
-    permissions:        # ✅ Add this block
-      contents: write   # Required for pushing using GITHUB_TOKEN
+    permissions:        # ✅ Needed for GITHUB_TOKEN push
+      contents: write
 
     steps:
       - name: 🧾 Checkout Code
@@ -41,7 +41,12 @@ jobs:
         if: steps.check-wrapper.outputs.exists == 'false'
         working-directory: android
         run: |
-          gradle wrapper --gradle-version 8.5
+          curl -s -o gradle-8.5-bin.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
+          unzip gradle-8.5-bin.zip
+          ./gradle-8.5/bin/gradle wrapper --gradle-version 8.5
+          # Copy wrapper jar manually
+          cp gradle-8.5/gradle/wrapper/gradle-wrapper.jar gradle/wrapper/
+          rm -rf gradle-8.5 gradle-8.5-bin.zip
 
       - name: ♻️ Restore original settings.gradle.kts
         if: steps.check-wrapper.outputs.exists == 'false'
@@ -55,7 +60,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B dev || git checkout dev
-          git add android/gradle/wrapper/gradle-wrapper.properties android/gradlew android/gradlew.bat
+          git add android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.properties android/gradlew android/gradlew.bat
           git commit -m "🔧 Generate Gradle wrapper files via GitHub Actions"
           git push origin dev
 
