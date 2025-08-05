@@ -33,16 +33,20 @@ jobs:
         run: |
           gradle wrapper --gradle-version 8.5
 
+      - name: 🧾 Write local.properties (for flutter.sdk)
+        if: steps.check-wrapper.outputs.exists == 'false'
+        run: |
+          echo "flutter.sdk=$HOME/flutter" > android/local.properties
+
       - name: 🚀 Commit & Push Gradle wrapper to `dev` branch
         if: steps.check-wrapper.outputs.exists == 'false'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Ensure we are on the dev branch
           git checkout -B dev || git checkout dev
 
-          git add android/gradle/wrapper/gradle-wrapper.properties android/gradlew android/gradlew.bat
+          git add android/gradle/wrapper/gradle-wrapper.properties android/gradlew android/gradlew.bat android/local.properties
           git commit -m "🔧 Generate Gradle wrapper files via GitHub Actions"
           git push origin dev
 
