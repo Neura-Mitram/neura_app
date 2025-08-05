@@ -1,5 +1,5 @@
 plugins {
-    id("com.android.application") version "8.4.0"
+    id("com.android.application") version "8.10.1"
     id("org.jetbrains.kotlin.android") version "1.9.22"
     id("com.google.gms.google-services") version "4.4.1"
     id("dev.flutter.flutter-gradle-plugin") version "1.0.0" // Keep last
