@@ -27,11 +27,12 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: 🧾 Write local.properties (for flutter.sdk)
+      - name: 🔁 Temporarily replace settings.gradle.kts
         if: steps.check-wrapper.outputs.exists == 'false'
+        working-directory: android
         run: |
-          mkdir -p android
-          echo "flutter.sdk=$HOME/flutter" > android/local.properties
+          cp settings.gradle.kts settings.gradle.kts.bak
+          echo 'rootProject.name = "temp"' > settings.gradle.kts
 
       - name: 🧰 Generate Gradle wrapper using init
         if: steps.check-wrapper.outputs.exists == 'false'
@@ -39,20 +40,19 @@ jobs:
         run: |
           gradle wrapper --gradle-version 8.5
 
-      - name: 🧾 Write local.properties (for flutter.sdk)
+      - name: ♻️ Restore original settings.gradle.kts
         if: steps.check-wrapper.outputs.exists == 'false'
+        working-directory: android
         run: |
-          echo "flutter.sdk=$HOME/flutter" > android/local.properties
+          mv settings.gradle.kts.bak settings.gradle.kts
 
       - name: 🚀 Commit & Push Gradle wrapper to `dev` branch
         if: steps.check-wrapper.outputs.exists == 'false'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
           git checkout -B dev || git checkout dev
-
-          git add android/gradle/wrapper/gradle-wrapper.properties android/gradlew android/gradlew.bat android/local.properties
+          git add android/gradle/wrapper/gradle-wrapper.properties android/gradlew android/gradlew.bat
           git commit -m "🔧 Generate Gradle wrapper files via GitHub Actions"
           git push origin dev
 
