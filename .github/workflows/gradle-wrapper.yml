@@ -21,10 +21,13 @@ jobs:
           echo "❌ Cannot run this on 'main'. Switch to 'dev' or another branch."
           exit 1
 
-      - name: 🧪 Check if Gradle wrapper already exists
+      - name: 🧪 Check if full Gradle wrapper exists
         id: check-wrapper
         run: |
-          if [ -f "./android/gradlew" ]; then
+          if [ -f "./android/gradlew" ] && \
+             [ -f "./android/gradlew.bat" ] && \
+             [ -f "./android/gradle/wrapper/gradle-wrapper.jar" ] && \
+             [ -f "./android/gradle/wrapper/gradle-wrapper.properties" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
@@ -37,14 +40,14 @@ jobs:
           cp settings.gradle.kts settings.gradle.kts.bak
           echo 'rootProject.name = "temp"' > settings.gradle.kts
 
-      - name: 🧰 Generate Gradle wrapper using init
+      - name: 🧰 Generate Gradle wrapper manually
         if: steps.check-wrapper.outputs.exists == 'false'
         working-directory: android
         run: |
           curl -s -o gradle-8.5-bin.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
           unzip gradle-8.5-bin.zip
           ./gradle-8.5/bin/gradle wrapper --gradle-version 8.5
-          # Copy wrapper jar manually
+          # Manually copy wrapper jar in case it's not copied
           cp gradle-8.5/gradle/wrapper/gradle-wrapper.jar gradle/wrapper/
           rm -rf gradle-8.5 gradle-8.5-bin.zip
 
@@ -66,4 +69,4 @@ jobs:
 
       - name: ✅ Done or Already Exists
         if: steps.check-wrapper.outputs.exists == 'true'
-        run: echo "✔️ Gradle wrapper already exists. Nothing to do."
+        run: echo "✔️ Full Gradle wrapper already exists. Nothing to do."
