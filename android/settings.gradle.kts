@@ -17,7 +17,7 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()        // ✅ Firebase & Google dependencies
         mavenCentral()  // ✅ Kotlin/Java & common libraries
