@@ -10,23 +10,25 @@ pluginManagement {
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
-        google() // ✅ Needed for Firebase, Google services
+        google()
         mavenCentral()
         gradlePluginPortal()
+        maven("https://jitpack.io") // ✅
     }
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS) // ✅
     repositories {
-        google()        // ✅ Firebase & Google dependencies
-        mavenCentral()  // ✅ Kotlin/Java & common libraries
+        google()
+        mavenCentral()
+        maven("https://jitpack.io") // ✅ Needed for flutter_sound
     }
 }
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.10.1" apply false
+    id("com.android.application") version "8.1.0" apply false
     id("org.jetbrains.kotlin.android") version "2.1.0" apply false
 }
 
