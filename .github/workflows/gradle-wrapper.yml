@@ -47,7 +47,6 @@ jobs:
           curl -sL -o gradle-8.5-bin.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
           unzip gradle-8.5-bin.zip
           ./gradle-8.5/bin/gradle wrapper --gradle-version 8.5
-          cp gradle-8.5/gradle/wrapper/gradle-wrapper.jar gradle/wrapper/
           rm -rf gradle-8.5 gradle-8.5-bin.zip
 
       - name: ♻️ Restore original settings.gradle.kts
