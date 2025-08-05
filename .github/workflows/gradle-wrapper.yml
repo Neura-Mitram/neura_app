@@ -27,6 +27,12 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: 🧾 Write local.properties (for flutter.sdk)
+        if: steps.check-wrapper.outputs.exists == 'false'
+        run: |
+          mkdir -p android
+          echo "flutter.sdk=$HOME/flutter" > android/local.properties
+
       - name: 🧰 Generate Gradle wrapper using init
         if: steps.check-wrapper.outputs.exists == 'false'
         working-directory: android
