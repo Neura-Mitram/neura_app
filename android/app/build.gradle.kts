@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application") version "8.10.1"
-    id("org.jetbrains.kotlin.android") version "1.9.22"
+    id("org.jetbrains.kotlin.android") version "2.1.0"
     id("com.google.gms.google-services") version "4.4.1"
     id("dev.flutter.flutter-gradle-plugin") version "1.0.0" // Keep last
 }
@@ -64,7 +64,7 @@ android {
 
 dependencies {
     // Kotlin
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0")
 
     // Firebase (BOM)
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
