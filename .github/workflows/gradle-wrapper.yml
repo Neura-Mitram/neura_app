@@ -1,4 +1,4 @@
-check full code : name: 🔧 Gradle Wrapper Generator
+name: 🔧 Gradle Wrapper Generator
 
 on:
   workflow_dispatch:  # Manual trigger only
