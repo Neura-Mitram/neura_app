@@ -1,0 +1,51 @@
+name: 🔧 Gradle Wrapper Generator
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  generate-wrapper:
+    runs-on: ubuntu-latest
+    name: 🔨 Generate Gradle Wrapper
+
+    steps:
+      - name: 🧾 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔒 Fail if on protected branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "❌ Cannot run this on 'main'. Switch to 'dev' or another branch."
+          exit 1
+
+      - name: 🧪 Check if Gradle wrapper already exists
+        id: check-wrapper
+        run: |
+          if [ -f "./android/gradlew" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🧰 Generate Gradle wrapper using init
+        if: steps.check-wrapper.outputs.exists == 'false'
+        working-directory: android
+        run: |
+          gradle wrapper --gradle-version 8.5
+
+      - name: 🚀 Commit & Push Gradle wrapper to `dev` branch
+        if: steps.check-wrapper.outputs.exists == 'false'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Ensure we are on the dev branch
+          git checkout -B dev || git checkout dev
+
+          git add android/gradle/wrapper/gradle-wrapper.properties android/gradlew android/gradlew.bat
+          git commit -m "🔧 Generate Gradle wrapper files via GitHub Actions"
+          git push origin dev
+
+      - name: ✅ Done or Already Exists
+        if: steps.check-wrapper.outputs.exists == 'true'
+        run: echo "✔️ Gradle wrapper already exists. Nothing to do."
