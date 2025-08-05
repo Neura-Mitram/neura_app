@@ -74,7 +74,7 @@ jobs:
         run: flutter pub get
 
       - name: 📥 Pre-cache Flutter engine artifacts
-        run: flutter precache --android --${{ env.BUILD_MODE }}
+        run: flutter precache --android
 
       - name: 🔑 Configure signing keys (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
