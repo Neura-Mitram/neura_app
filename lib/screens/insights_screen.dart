@@ -107,13 +107,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
     final formatted = const JsonEncoder.withIndent('  ').convert(data);
     final bytes = Uint8List.fromList(utf8.encode(formatted));
 
-    final String? path = await FileSaver.instance.saveFile(
+    final String path = await FileSaver.instance.saveFile(
       name: "neura_personality_snapshot.txt", // ✅ include extension in name
       bytes: bytes,
       mimeType: MimeType.text, // ✅ or MimeType.other with custom
     );
 
-    if (path != null && path.isNotEmpty) {
+    if (path != '' && path.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("✅ Snapshot saved to Downloads.")),
       );
