@@ -34,7 +34,7 @@ jobs:
       - name: 🔁 Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # For better versioning
+          fetch-depth: 0  # Needed for versioning or tagging
 
       - name: ⚙️ Setup Java 17
         uses: actions/setup-java@v4
@@ -42,16 +42,8 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 📦 Cache Flutter dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-            /usr/local/lib/flutter/.pub-cache
-            android/gradle-wrapper
-          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-flutter-
+      - name: 🧹 Clean Gradle cache (optional but required for Kotlin DSL)
+        run: rm -rf ~/.gradle/caches
 
       - name: ⚙️ Set up Flutter
         uses: subosito/flutter-action@v2
@@ -60,19 +52,31 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: 📦 Cache Flutter & Gradle deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            android/.gradle
+            .dart_tool
+            build
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
       - name: 🔐 Write google-services.json
         run: |
           mkdir -p android/app
           echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
           echo "✅ Google services configured"
 
-      - name: 📦 Install dependencies
+      - name: 📦 Install Flutter dependencies
         run: flutter pub get
 
-      - name: 🔑 Configure signing keys (Release only)
+      - name: 🔑 Configure signing keys (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
         run: |
-          echo '${{ secrets.ANDROID_KEYSTORE }}' > android/keystore.jks
+          echo '${{ secrets.ANDROID_KEYSTORE }}' | base64 -d > android/keystore.jks
           echo "storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}" > android/key.properties
           echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
@@ -81,7 +85,6 @@ jobs:
       - name: 🏗️ Build APK or AAB
         run: |
           echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode..."
-          
           if [ "$BUILD_MODE" = "release" ]; then
             if [ "$BUILD_FORMAT" = "apk" ]; then
               flutter build apk --release --split-per-abi --no-shrink
@@ -103,7 +106,7 @@ jobs:
           fi
           echo "ARTIFACT_NAME=Neura-${{ env.BUILD_MODE }}-${{ env.BUILD_FORMAT }}-$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
 
-      - name: 🔒 Code signing verification (Release)
+      - name: 🔒 Verify code signing (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
         run: |
           if [ "$BUILD_FORMAT" = "apk" ]; then
@@ -112,7 +115,7 @@ jobs:
             jarsigner -verify -verbose -certs ${{ env.ARTIFACT_PATH }} || exit 1
           fi
 
-      - name: 🚀 Upload to Firebase (release only)
+      - name: 🚀 Upload to Firebase App Distribution (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
@@ -120,11 +123,17 @@ jobs:
           token: ${{ secrets.FIREBASE_TOKEN }}
           groups: testers
           file: ${{ env.ARTIFACT_PATH }}
-          releaseNotes: "🚀 Neura v1.0.0+1 (${{ env.BUILD_FORMAT }}) | Built: $(date +'%Y-%m-%d %H:%M')"
+          releaseNotes: |
+            🚀 Neura v1.0.0+1 (${{ env.BUILD_FORMAT }})
+            Built: $(date +'%Y-%m-%d %H:%M')
 
-      - name: 📦 Upload artifact to GitHub
+      - name: ⬆️ Upload artifact to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.ARTIFACT_PATH }}
           retention-days: 7
+
+      - name: 🩺 Flutter Doctor (on failure)
+        if: failure()
+        run: flutter doctor -v
