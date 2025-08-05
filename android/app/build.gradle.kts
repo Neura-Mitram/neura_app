@@ -22,9 +22,6 @@ android {
         versionName = flutter.versionName ?: "1.0.0"
         multiDexEnabled = true
 
-        ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
-        }
     }
 
     compileOptions {
