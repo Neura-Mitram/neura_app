@@ -1,5 +1,5 @@
 plugins {
-    id("com.android.application") version "8.10.1"
+    id("com.android.application") version "8.1.0"
     id("org.jetbrains.kotlin.android") version "2.1.0"
     id("com.google.gms.google-services") version "4.4.1"
     id("dev.flutter.flutter-gradle-plugin") // Keep last
@@ -18,7 +18,7 @@ android {
         applicationId = "com.byshiladityamallick.neura"
         minSdk = 24
         targetSdk = 34
-        versionCode = flutter.versionCode.toIntOrNull() ?: 1
+        versionCode = flutter.versionCode?.toString()?.toIntOrNull() ?: 1
         versionName = flutter.versionName ?: "1.0.0"
         multiDexEnabled = true
 
@@ -63,37 +63,28 @@ android {
 }
 
 dependencies {
-    // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0")
 
-    // Firebase (BOM)
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
 
-    // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okio:okio:3.9.0")
 
-    // Machine Learning
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
-    // UI Components
     implementation("com.google.android.material:material:1.12.0")
 
-    // AndroidX Core
     implementation("androidx.core:core-ktx:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
     implementation("androidx.multidex:multidex:2.0.1")
 
-    // Location Services
     implementation("com.google.android.gms:play-services-location:21.2.0")
 
-    // Background Work
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
-    // Testing (optional for release)
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
