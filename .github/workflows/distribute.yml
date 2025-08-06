@@ -42,9 +42,6 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: ✅ Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
-
       - name: 🧹 Clean Gradle cache (optional but required for Kotlin DSL)
         run: |
           rm -rf ~/.gradle/caches/
