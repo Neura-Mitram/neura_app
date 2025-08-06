@@ -83,11 +83,11 @@ class MainActivity : FlutterActivity() {
                         playTtsStream(it)
                         result.success(true)
                     } ?: result.error("NO_URL", "No URL provided", null)
-                    
+
                     "speakNativeTts" -> speakTts(
                         call.argument<String>("text") ?: "Sorry, I lost connection"
                     ).also { result.success(true) }
-                    
+
                     else -> result.notImplemented()
                 }
             }
@@ -310,7 +310,7 @@ class MainActivity : FlutterActivity() {
         val isScreenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: false
 
         Toast.makeText(this, "🔴 Danger detected. Sending SOS...", Toast.LENGTH_LONG).show()
-        
+
         coroutineScope.launch {
             val delayTime = if (isScreenOn) SOS_DELAY_SCREEN_ON else SOS_DELAY_SCREEN_OFF
             delay(delayTime)
@@ -429,7 +429,7 @@ class MainActivity : FlutterActivity() {
     // Region: Battery Optimization
     private fun requestBatteryOptimizationIgnore() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-        
+
         (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.let { pm ->
             if (!pm.isIgnoringBatteryOptimizations(packageName)) {
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
