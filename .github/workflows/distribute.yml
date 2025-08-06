@@ -73,7 +73,27 @@ jobs:
           restore-keys: |
             flutter-deps-${{ runner.os }}-
 
-      # ---------- Setup Tools ----------
+      # ---------- Install SDK if cache empty ----------
+      - name: ⚙️ Install Android SDK (if missing)
+        run: |
+          if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            echo "🆕 Installing Android SDK Command Line Tools..."
+            sudo mkdir -p $ANDROID_HOME
+            sudo apt-get update -y
+            sudo apt-get install -y wget unzip
+            wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+            unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
+            mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          else
+            echo "✅ Android SDK cache found"
+          fi
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      # ---------- Setup Flutter ----------
       - name: ⚙️ Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -92,17 +112,16 @@ jobs:
 
       - name: 🏗️ Build APK/AAB (verbose logs)
         run: |
-          echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode with verbose output..."
+          echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode..."
           if [ "$BUILD_MODE" = "release" ]; then
             if [ "$BUILD_FORMAT" = "apk" ]; then
-              flutter build apk --release --no-shrink --verbose --stacktrace
+              flutter build apk --release --no-shrink --verbose --gradle-args="--stacktrace"
             else
-              flutter build appbundle --release --no-shrink --verbose --stacktrace
+              flutter build appbundle --release --no-shrink --verbose --gradle-args="--stacktrace"
             fi
           else
-            flutter build apk --debug --verbose --stacktrace
+            flutter build apk --debug --verbose --gradle-args="--stacktrace"
           fi
-
 
       - name: 🧮 Find build artifact (supports all Gradle paths)
         run: |
@@ -113,8 +132,7 @@ jobs:
           fi
           if [ -z "$FILE_PATH" ]; then
             echo "❌ No build artifact found!"
-            echo "📂 Files in build/:"
-            find build/ -type f
+            echo "📂 Files in build/:" && find build/ -type f
             exit 1
           fi
           echo "✅ Found build artifact: $FILE_PATH"
