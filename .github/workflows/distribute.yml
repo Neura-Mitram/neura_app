@@ -34,7 +34,7 @@ jobs:
       - name: 🔁 Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Needed for versioning or tagging
+          fetch-depth: 0
 
       - name: ⚙️ Setup Java 17
         uses: actions/setup-java@v4
@@ -42,7 +42,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 🧹 Clean Gradle cache (optional but required for Kotlin DSL)
+      - name: 🧹 Clean Gradle cache
         run: |
           rm -rf ~/.gradle/caches/
           rm -rf ~/.gradle/wrapper/
@@ -71,7 +71,7 @@ jobs:
           mkdir -p android/app
           echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
           echo "✅ Google services configured"
-      
+
       - name: 🔄 Clean Flutter build
         run: flutter clean
 
@@ -93,82 +93,6 @@ jobs:
           echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=../keystore.jks" >> android/key.properties
-
-      - name: 🧩 Ensure required xml & ic_launcher_round resources exist
-        run: |
-          ROOT_DIR="android/app/src/main/res"
-          INSTALL_IMAGEMAGICK=false
-          PLACEHOLDERS=()
-
-          # ✅ Create network_security_config.xml only if missing
-          if [ ! -f "$ROOT_DIR/xml/network_security_config.xml" ]; then
-            mkdir -p "$ROOT_DIR/xml"
-            cat <<EOF > "$ROOT_DIR/xml/network_security_config.xml"
-            <?xml version="1.0" encoding="utf-8"?>
-            <network-security-config>
-                <base-config cleartextTrafficPermitted="true" />
-            </network-security-config>
-            EOF
-                  echo "📄 Created network_security_config.xml"
-                else
-                  echo "✅ network_security_config.xml already exists"
-                fi
-
-                # ✅ Find a reference PNG for round icons (if exists anywhere)
-                REF_ROUND=$(find "$ROOT_DIR" -name "ic_launcher_round.png" | head -n 1)
-                REF_MAIN=$(find "$ROOT_DIR" -name "ic_launcher.png" | head -n 1)
-
-                # ✅ Ensure ic_launcher_round.png exists in each mipmap folder
-                for dir in "$ROOT_DIR"/mipmap-*/; do
-                  ROUND_ICON="$dir/ic_launcher_round.png"
-                  MAIN_ICON="$dir/ic_launcher.png"
-
-                  if [ -f "$ROUND_ICON" ]; then
-                    echo "✅ $ROUND_ICON already exists."
-                    continue
-                  fi
-
-                  if [ -f "$MAIN_ICON" ]; then
-                    cp "$MAIN_ICON" "$ROUND_ICON"
-                    echo "📋 Copied $MAIN_ICON → $ROUND_ICON"
-                    continue
-                  fi
-
-                  # Use reference round PNG if found
-                  if [ -n "$REF_ROUND" ]; then
-                    cp "$REF_ROUND" "$ROUND_ICON"
-                    echo "🔄 Copied reference round icon $REF_ROUND → $ROUND_ICON"
-                    continue
-                  fi
-
-                  # Use reference main PNG if found
-                  if [ -n "$REF_MAIN" ]; then
-                    cp "$REF_MAIN" "$ROUND_ICON"
-                    echo "🔍 Copied reference main icon $REF_MAIN → $ROUND_ICON"
-                    continue
-                  fi
-
-                  # Mark for placeholder generation if only XML exists
-                  XML_ICON=$(find "$ROOT_DIR" -name "ic_launcher.xml" | head -n 1)
-                  if [ -n "$XML_ICON" ]; then
-                    INSTALL_IMAGEMAGICK=true
-                    PLACEHOLDERS+=("$ROUND_ICON")
-                  else
-                    echo "❌ No source found for $ROUND_ICON"
-                  fi
-                done
-
-                # ✅ Install ImageMagick once if needed
-                if [ "$INSTALL_IMAGEMAGICK" = true ]; then
-                  echo "📦 Installing ImageMagick for placeholder generation..."
-                  sudo apt-get update -y && sudo apt-get install -y imagemagick
-                  for icon_path in "${PLACEHOLDERS[@]}"; do
-                    convert -size 192x192 xc:none -fill "#4CAF50" -draw "circle 96,96 96,10" \
-                      -gravity center -pointsize 72 -fill white \
-                      -draw "text 0,20 'N'" "$icon_path"
-                    echo "⚠ Generated styled placeholder at $icon_path"
-                  done
-                fi
 
       - name: 🏗️ Build APK or AAB
         run: |
