@@ -3,25 +3,32 @@ package com.byshiladityamallick.neura
 import android.annotation.SuppressLint
 import android.app.*
 import android.content.*
+import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.os.*
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import android.view.*
 import android.view.animation.*
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
+import androidx.core.net.toUri
 import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 class OverlayDotService : Service() {
     // Constants
@@ -58,24 +65,18 @@ class OverlayDotService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        // 🚫 Prevent execution if onboarding not completed
         if (!isOnboardingComplete()) {
             stopSelf()
             return
         }
 
-        // Initialize UI components
         initWindowManager()
         setupPulseAnimations()
         dotIcon?.startAnimation(normalPulse)
 
-        // Register broadcast receivers
         registerReceivers()
-
-        // Start supporting services
         startSupportingServices()
 
-        // Start app tracking if enabled
         if (isSmartTrackingEnabled()) {
             startForegroundServiceCompat(ForegroundAppDetector::class.java)
         }
@@ -128,7 +129,7 @@ class OverlayDotService : Service() {
                         initialY = layoutParams.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
-                        view.performClick()  // Accessibility support
+                        view.performClick()
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
@@ -182,7 +183,6 @@ class OverlayDotService : Service() {
     }
 
     private fun registerReceivers() {
-        // Wakeword event receiver
         wakewordReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 when (intent?.action) {
@@ -196,7 +196,6 @@ class OverlayDotService : Service() {
             }
         }
 
-        // Unlock receiver
         unlockReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == Intent.ACTION_USER_PRESENT) {
@@ -205,7 +204,6 @@ class OverlayDotService : Service() {
             }
         }
 
-        // Register both receivers
         val filter = IntentFilter().apply {
             addAction("com.neura.WAKEWORD_TRIGGERED")
             addAction("com.neura.TRIGGER_SMART_SOS")
@@ -220,7 +218,6 @@ class OverlayDotService : Service() {
     }
 
     private fun startSupportingServices() {
-        // Start location monitoring for travel tips
         startForegroundServiceCompat(LocationMonitorService::class.java)
     }
 
@@ -229,7 +226,6 @@ class OverlayDotService : Service() {
         return prefs.getBoolean("flutter.smart_tracking_enabled", false)
     }
 
-    // Region: Event Handlers
     private fun handleWakewordTrigger(intent: Intent) {
         pulseDotFaster()
         val langCode = intent.getStringExtra("lang") ?: "en"
@@ -287,7 +283,6 @@ class OverlayDotService : Service() {
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         return prefs.getBoolean("flutter.voice_nudges_enabled", true) && !MuteManager.nudgesMuted
     }
-    // End Region
 
     private fun pulseDotFaster() {
         dotIcon?.clearAnimation()
@@ -489,10 +484,7 @@ class OverlayDotService : Service() {
             return
         }
 
-        val requestBody = RequestBody.create(
-            "application/json".toMediaTypeOrNull(),
-            """{ "device_id": "$deviceId" }"""
-        )
+        val requestBody = """{ "device_id": "$deviceId" }""".toRequestBody("application/json".toMediaTypeOrNull())
 
         val request = Request.Builder()
             .url("https://byshiladityamallick-neura-smart-assistant.hf.space/safety/list-sos-contacts")
@@ -529,7 +521,7 @@ class OverlayDotService : Service() {
             putExtra("sms_body", message)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
-        
+
         if (intent.resolveActivity(packageManager) != null) {
             startActivity(intent)
         } else {
@@ -556,7 +548,6 @@ class OverlayDotService : Service() {
             summaryArray.put(newItem)
         }
 
-        // Trim to max items
         val limitedArray = JSONArray()
         val start = (summaryArray.length() - MAX_SUMMARY_ITEMS).coerceAtLeast(0)
         for (i in start until summaryArray.length()) {
@@ -607,10 +598,10 @@ class OverlayDotService : Service() {
         removeViewSafely(floatingView)
         removeViewSafely(sosBubbleView)
         removeViewSafely(hiBubbleView)
-        
+
         unregisterReceiver(wakewordReceiver)
         unregisterReceiver(unlockReceiver)
-        
+
         sosBubbleTimer?.removeCallbacksAndMessages(null)
         serviceScope.cancel()
     }
@@ -650,6 +641,8 @@ class OverlayDotService : Service() {
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
+
+    override fun onBind(intent: Intent?): IBinder? = null
 }
 
 object MuteManager {
@@ -658,7 +651,7 @@ object MuteManager {
 
 object TtsManager {
     var ttsEngine: TextToSpeech? = null
-    
+
     fun initialize(context: Context, onReady: (TextToSpeech) -> Unit) {
         ttsEngine = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -666,7 +659,7 @@ object TtsManager {
             }
         }
     }
-    
+
     fun shutdown() {
         ttsEngine?.stop()
         ttsEngine?.shutdown()
