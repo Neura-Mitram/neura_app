@@ -12,7 +12,6 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class ForegroundAppDetector : Service() {
@@ -24,9 +23,12 @@ class ForegroundAppDetector : Service() {
         private const val DETECTION_INTERVAL = 30000L // 30s
 
         private val SYSTEM_APP_PREFIXES = listOf(
-            "com.android.launcher", "com.google.android.googlequicksearchbox",
-            "com.miui.home", "com.samsung.android",
-            "com.huawei.android.launcher", "com.oppo.launcher"
+            "com.android.launcher",
+            "com.google.android.googlequicksearchbox",
+            "com.miui.home",
+            "com.samsung.android",
+            "com.huawei.android.launcher",
+            "com.oppo.launcher"
         )
     }
 
@@ -45,7 +47,13 @@ class ForegroundAppDetector : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        try {
+            startForeground(NOTIFICATION_ID, createNotification())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground mode", e)
+            stopSelf()
+            return
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -63,6 +71,10 @@ class ForegroundAppDetector : Service() {
 
     private fun detectForegroundApp() {
         if (!isTrackingEnabled()) return
+        if (!hasUsageAccessPermission()) {
+            Log.w(TAG, "Usage stats permission missing — cannot detect foreground app")
+            return
+        }
 
         serviceScope.launch {
             val packageName = getForegroundAppPackage() ?: return@launch
@@ -78,6 +90,21 @@ class ForegroundAppDetector : Service() {
     private fun isTrackingEnabled(): Boolean {
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         return prefs.getBoolean("flutter.smart_tracking_enabled", false)
+    }
+
+    private fun hasUsageAccessPermission(): Boolean {
+        return try {
+            val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val now = System.currentTimeMillis()
+            val stats = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                now - 1000 * 60,
+                now
+            )
+            stats != null && stats.isNotEmpty()
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun getForegroundAppPackage(): String? {
