@@ -3,6 +3,7 @@ package com.byshiladityamallick.neura
 import android.content.Intent
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.*
@@ -11,8 +12,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.IOException
 import java.util.concurrent.TimeUnit
+
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -33,8 +34,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun triggerNudgeFallback() {
-        OverlayDotService.checkNudgeFallback(applicationContext)
+    val intent = Intent(applicationContext, OverlayDotService::class.java).apply {
+        putExtra("check_nudge_fallback", true)
     }
+    ContextCompat.startForegroundService(applicationContext, intent)
+    }
+
 
     private fun handleTravelTip(data: Map<String, String>) {
         sendBroadcast(Intent("com.neura.TRAVEL_TIP_RECEIVED").apply {
