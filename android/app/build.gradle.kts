@@ -53,8 +53,6 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "/META-INF/DEPENDENCIES"
-            excludes += "**/libflutter.so"
-            excludes += "**/libtensorflowlite_jni.so"
         }
     }
 }
