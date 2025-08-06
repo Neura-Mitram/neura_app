@@ -14,7 +14,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.isActive
+import kotlinx.coroutines.isActive
 import okhttp3.*
 import okio.ByteString
 import org.tensorflow.lite.Interpreter
@@ -56,11 +56,18 @@ class WakewordForegroundService : Service() {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val info = Notification.ForegroundServiceInfo(
-                Notification.ForegroundServiceInfo.TYPE_MICROPHONE,
-                0
-            )
-            setForegroundServiceBehavior(info)
+            try {
+                // Use safe reflection-free API if available
+                startForeground(
+                    NOTIFICATION_ID,
+                    createNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } catch (_: Exception) {
+                startForeground(NOTIFICATION_ID, createNotification())
+            }
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
         }
 
         wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(
@@ -69,8 +76,6 @@ class WakewordForegroundService : Service() {
         ).apply { acquire(WAKE_LOCK_TIMEOUT) }
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
-
         requestAudioFocus()
     }
 
@@ -112,7 +117,7 @@ class WakewordForegroundService : Service() {
     private fun requestAudioFocus() {
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val result = audioManager.requestAudioFocus(
-            AudioManager.OnAudioFocusChangeListener { },
+            { /* ignore changes */ },
             AudioManager.STREAM_VOICE_CALL,
             AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
         )
@@ -199,9 +204,14 @@ class WakewordForegroundService : Service() {
 
     private fun handleWakewordTrigger() {
         try {
-            (getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).vibrate(
-                VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
-            )
+            (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.let { vibrator ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(100)
+                }
+            }
 
             ContextCompat.startForegroundService(
                 this,
