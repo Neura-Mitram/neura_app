@@ -64,9 +64,10 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0")
 
     // Firebase (BOM)
-    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
-    implementation("com.google.firebase:firebase-messaging-ktx")
-    implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+    implementation("com.google.firebase:firebase-messaging")    // use main module
+    implementation("com.google.firebase:firebase-analytics")
+
 
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

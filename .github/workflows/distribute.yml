@@ -71,6 +71,12 @@ jobs:
           mkdir -p android/app
           echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
           echo "✅ Google services configured"
+      
+      - name: 🔄 Clean Flutter build
+        run: flutter clean
+
+      - name: 🧹 Clean Gradle project
+        run: ./gradlew clean
 
       - name: 📦 Install Flutter dependencies
         run: flutter pub get
