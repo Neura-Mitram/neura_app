@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.media.*
 import android.os.*
 import android.util.Log
@@ -55,19 +56,22 @@ class WakewordForegroundService : Service() {
             return
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            try {
-                // Use safe reflection-free API if available
+        createNotificationChannel()
+
+        val notification = createNotification()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 startForeground(
                     NOTIFICATION_ID,
-                    createNotification(),
+                    notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
                 )
-            } catch (_: Exception) {
-                startForeground(NOTIFICATION_ID, createNotification())
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
             }
-        } else {
-            startForeground(NOTIFICATION_ID, createNotification())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting foreground", e)
+            startForeground(NOTIFICATION_ID, notification)
         }
 
         wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(
@@ -75,7 +79,6 @@ class WakewordForegroundService : Service() {
             "neura::WakewordLock"
         ).apply { acquire(WAKE_LOCK_TIMEOUT) }
 
-        createNotificationChannel()
         requestAudioFocus()
     }
 
@@ -84,6 +87,11 @@ class WakewordForegroundService : Service() {
             runInferenceLoop()
         }
         return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? {
+        // This service is not bound
+        return null
     }
 
     private fun createNotification(): Notification {
@@ -108,7 +116,6 @@ class WakewordForegroundService : Service() {
                 description = "Background service for wakeword detection"
                 setShowBadge(false)
             }
-
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                 .createNotificationChannel(channel)
         }
@@ -117,11 +124,10 @@ class WakewordForegroundService : Service() {
     private fun requestAudioFocus() {
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val result = audioManager.requestAudioFocus(
-            { /* ignore changes */ },
+            { /* ignore */ },
             AudioManager.STREAM_VOICE_CALL,
             AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
         )
-
         if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             Log.w(TAG, "Audio focus not granted - wakeword detection may be impaired")
         }
@@ -213,11 +219,13 @@ class WakewordForegroundService : Service() {
                 }
             }
 
+            // Ensure OverlayDotService starts
             ContextCompat.startForegroundService(
                 this,
                 Intent(this, OverlayDotService::class.java)
             )
 
+            // Notify overlay to show bubble
             sendBroadcast(Intent("com.neura.WAKEWORD_TRIGGERED"))
 
             serviceScope.launch {
@@ -302,13 +310,11 @@ class WakewordForegroundService : Service() {
     private fun cleanupResources() {
         try {
             abandonAudioFocus()
-
             audioRecord?.apply {
                 if (recordingState == AudioRecord.RECORDSTATE_RECORDING) stop()
                 release()
             }
             audioRecord = null
-
             releaseAudioTrack()
             interpreter?.close()
             interpreter = null
