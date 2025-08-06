@@ -31,6 +31,7 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 class OverlayDotService : Service() {
+
     // Constants
     private companion object {
         const val TAG = "OverlayDotService"
@@ -54,8 +55,8 @@ class OverlayDotService : Service() {
     private var cancelTriggered = false
 
     // Broadcast receivers
-    private lateinit var wakewordReceiver: BroadcastReceiver
-    private lateinit var unlockReceiver: BroadcastReceiver
+    private var wakewordReceiver: BroadcastReceiver? = null
+    private var unlockReceiver: BroadcastReceiver? = null
 
     // Services
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -88,31 +89,36 @@ class OverlayDotService : Service() {
     }
 
     private fun initWindowManager() {
-        windowManager = getSystemService()
-        val inflater = LayoutInflater.from(this)
-        floatingView = inflater.inflate(R.layout.overlay_dot, null)
+        try {
+            windowManager = getSystemService()
+            val inflater = LayoutInflater.from(this)
+            floatingView = inflater.inflate(R.layout.overlay_dot, null)
 
-        val layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = 50
-            y = 300
+            val layoutParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = 50
+                y = 300
+            }
+
+            dotIcon = floatingView?.findViewById(R.id.dot_icon)
+            setupViewDragListener(layoutParams)
+            setupViewClickListeners()
+            windowManager?.addView(floatingView, layoutParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Overlay permission missing or WindowManager init failed", e)
+            stopSelf()
         }
-
-        dotIcon = floatingView?.findViewById(R.id.dot_icon)
-        setupViewDragListener(layoutParams)
-        setupViewClickListeners()
-        windowManager?.addView(floatingView, layoutParams)
     }
 
     private fun setupViewDragListener(layoutParams: WindowManager.LayoutParams) {
@@ -213,8 +219,17 @@ class OverlayDotService : Service() {
             addAction("com.neura.FOREGROUND_REPLY")
         }
 
-        registerReceiver(wakewordReceiver, filter)
-        registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT))
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(wakewordReceiver, filter, Context.RECEIVER_EXPORTED)
+                registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT), Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(wakewordReceiver, filter)
+                registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Receiver registration failed", e)
+        }
     }
 
     private fun startSupportingServices() {
@@ -398,20 +413,24 @@ class OverlayDotService : Service() {
             fillAfter = true
         }
 
-        view.startAnimation(fadeIn)
-        windowManager?.addView(view, layoutParams)
+        try {
+            view.startAnimation(fadeIn)
+            windowManager?.addView(view, layoutParams)
 
-        if (duration > 0) {
-            Handler(Looper.getMainLooper()).postDelayed({
-                val fadeOut = AlphaAnimation(1f, 0f).apply {
-                    this.duration = 300
-                    fillAfter = true
-                }
-                view.startAnimation(fadeOut)
+            if (duration > 0) {
                 Handler(Looper.getMainLooper()).postDelayed({
-                    removeViewSafely(view)
-                }, 300)
-            }, duration)
+                    val fadeOut = AlphaAnimation(1f, 0f).apply {
+                        this.duration = 300
+                        fillAfter = true
+                    }
+                    view.startAnimation(fadeOut)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        removeViewSafely(view)
+                    }, 300)
+                }, duration)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to animate or add overlay", e)
         }
     }
 
@@ -599,8 +618,12 @@ class OverlayDotService : Service() {
         removeViewSafely(sosBubbleView)
         removeViewSafely(hiBubbleView)
 
-        unregisterReceiver(wakewordReceiver)
-        unregisterReceiver(unlockReceiver)
+        try {
+            wakewordReceiver?.let { unregisterReceiver(it) }
+            unlockReceiver?.let { unregisterReceiver(it) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Receiver already unregistered or not registered", e)
+        }
 
         sosBubbleTimer?.removeCallbacksAndMessages(null)
         serviceScope.cancel()
@@ -643,13 +666,13 @@ class OverlayDotService : Service() {
         .build()
 
     override fun onBind(intent: Intent?): IBinder? = null
-}
+    }
 
-object MuteManager {
-    var nudgesMuted: Boolean = false
-}
+    object MuteManager {
+        var nudgesMuted: Boolean = false
+    }
 
-object TtsManager {
+    object TtsManager {
     var ttsEngine: TextToSpeech? = null
 
     fun initialize(context: Context, onReady: (TextToSpeech) -> Unit) {
@@ -666,3 +689,4 @@ object TtsManager {
         ttsEngine = null
     }
 }
+
