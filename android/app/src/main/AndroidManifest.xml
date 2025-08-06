@@ -116,8 +116,10 @@
             android:name=".ForegroundAppDetector"
             android:enabled="true"
             android:exported="false"
+            android:foregroundServiceType="dataSync"
             android:permission="android.permission.PACKAGE_USAGE_STATS"
             tools:ignore="ProtectedPermissions"/>
+
 
         <!-- Metadata -->
         <meta-data
