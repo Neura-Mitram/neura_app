@@ -117,12 +117,12 @@ jobs:
           echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode with Flutter..."
           if [ "$BUILD_MODE" = "release" ]; then
             if [ "$BUILD_FORMAT" = "apk" ]; then
-              flutter build apk --release --no-shrink --verbose
+              flutter build apk --release --no-shrink
             else
-              flutter build appbundle --release --no-shrink --verbose
+              flutter build appbundle --release --no-shrink
             fi
           else
-            flutter build apk --debug --verbose
+            flutter build apk --debug
           fi
 
       - name: 🐛 Retry with Gradle if Flutter build failed
@@ -137,18 +137,34 @@ jobs:
           fi
           cd ..
 
-      - name: 🧮 Find build artifact (supports all Gradle paths)
+      - name: 🧮 Find build artifact (supports Flutter & Gradle outputs)
         run: |
+          SEARCH_DIRS=("build/" "android/app/build/outputs/")
           if [ "$BUILD_FORMAT" = "aab" ]; then
-            FILE_PATH=$(find build/ -type f -name "*.aab" | head -n 1)
+            PATTERN="*.aab"
           else
-            FILE_PATH=$(find build/ -type f -name "*.apk" | head -n 1)
+            PATTERN="*.apk"
           fi
+
+          FILE_PATH=""
+          for dir in "${SEARCH_DIRS[@]}"; do
+            echo "🔍 Searching in $dir..."
+            FOUND=$(find "$dir" -type f -name "$PATTERN" | head -n 1 || true)
+            if [ -n "$FOUND" ]; then
+              FILE_PATH="$FOUND"
+              break
+            fi
+          done
+
           if [ -z "$FILE_PATH" ]; then
             echo "❌ No build artifact found!"
-            echo "📂 Files in build/:" && find build/ -type f
+            echo "📂 Files in possible build directories:"
+            for dir in "${SEARCH_DIRS[@]}"; do
+              find "$dir" -type f || true
+            done
             exit 1
           fi
+
           echo "✅ Found build artifact: $FILE_PATH"
           echo "ARTIFACT_PATH=$FILE_PATH" >> $GITHUB_ENV
           echo "ARTIFACT_NAME=Neura-${BUILD_MODE}-${BUILD_FORMAT}-$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
