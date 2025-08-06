@@ -110,19 +110,32 @@ jobs:
           mkdir -p android/app
           echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
 
-      - name: 🏗️ Build APK/AAB (verbose logs)
+      - name: 🏗️ Build APK/AAB (Flutter)
+        id: flutter_build
+        continue-on-error: true
         run: |
-          echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode..."
+          echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode with Flutter..."
           if [ "$BUILD_MODE" = "release" ]; then
             if [ "$BUILD_FORMAT" = "apk" ]; then
-              flutter build apk --release --no-shrink --verbose -- --stacktrace
+              flutter build apk --release --no-shrink --verbose
             else
-              flutter build appbundle --release --no-shrink --verbose -- --stacktrace
+              flutter build appbundle --release --no-shrink --verbose
             fi
           else
-            flutter build apk --debug --verbose -- --stacktrace
+            flutter build apk --debug --verbose
           fi
 
+      - name: 🐛 Retry with Gradle if Flutter build failed
+        if: steps.flutter_build.outcome == 'failure'
+        run: |
+          echo "⚠️ Flutter build failed — retrying with Gradle + --stacktrace..."
+          cd android
+          if [ "$BUILD_MODE" = "release" ]; then
+            ./gradlew assembleRelease --stacktrace
+          else
+            ./gradlew assembleDebug --stacktrace
+          fi
+          cd ..
 
       - name: 🧮 Find build artifact (supports all Gradle paths)
         run: |
