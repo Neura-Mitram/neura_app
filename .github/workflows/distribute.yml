@@ -76,6 +76,7 @@ jobs:
         run: flutter clean
 
       - name: 🧹 Clean Gradle project
+        working-directory: android
         run: ./gradlew clean
 
       - name: 📦 Install Flutter dependencies
