@@ -73,9 +73,19 @@ jobs:
           restore-keys: |
             flutter-deps-${{ runner.os }}-
 
-      # ---------- Install SDK if cache empty ----------
-      - name: ⚙️ Install Android SDK (if missing)
+      # ---------- Install Android SDK (only missing packages) ----------
+      - name: ⚙️ Install Android SDK (only missing packages)
         run: |
+          install_sdk_package() {
+            local package=$1
+            if ! $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep -q "$package"; then
+              echo "📦 Installing missing SDK package: $package"
+              yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "$package"
+            else
+              echo "✅ $package already installed"
+            fi
+          }
+
           if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
             echo "🆕 Installing Android SDK Command Line Tools..."
             sudo mkdir -p $ANDROID_HOME
@@ -87,11 +97,12 @@ jobs:
           else
             echo "✅ Android SDK cache found"
           fi
+
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+
+          install_sdk_package "platform-tools"
+          install_sdk_package "platforms;android-35"
+          install_sdk_package "build-tools;35.0.0"
 
       # ---------- Setup Flutter ----------
       - name: ⚙️ Set up Flutter
@@ -110,36 +121,26 @@ jobs:
           mkdir -p android/app
           echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
 
-      - name: 🏗️ Build APK/AAB (Flutter)
-        id: flutter_build
-        continue-on-error: true
-        run: |
-          echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode with Flutter..."
-          if [ "$BUILD_MODE" = "release" ]; then
-            if [ "$BUILD_FORMAT" = "apk" ]; then
-              flutter build apk --release --no-shrink
-            else
-              flutter build appbundle --release --no-shrink
-            fi
-          else
-            flutter build apk --debug
-          fi
+      - name: 📦 Build Flutter bundle (assets + Dart)
+        run: flutter build bundle --${BUILD_MODE}
 
-      - name: 🐛 Retry with Gradle if Flutter build failed
-        if: steps.flutter_build.outcome == 'failure'
+      - name: 🏗️ Build APK/AAB with Gradle
         run: |
-          echo "⚠️ Flutter build failed — retrying with Gradle + --stacktrace..."
           cd android
           if [ "$BUILD_MODE" = "release" ]; then
-            ./gradlew assembleRelease --stacktrace
+            if [ "$BUILD_FORMAT" = "apk" ]; then
+              ./gradlew assembleRelease --stacktrace
+            else
+              ./gradlew bundleRelease --stacktrace
+            fi
           else
             ./gradlew assembleDebug --stacktrace
           fi
           cd ..
 
-      - name: 🧮 Find build artifact (supports Flutter & Gradle outputs)
+      - name: 🧮 Find build artifact
         run: |
-          SEARCH_DIRS=("build/" "android/app/build/outputs/")
+          SEARCH_DIRS=("android/app/build/outputs/")
           if [ "$BUILD_FORMAT" = "aab" ]; then
             PATTERN="*.aab"
           else
@@ -158,10 +159,6 @@ jobs:
 
           if [ -z "$FILE_PATH" ]; then
             echo "❌ No build artifact found!"
-            echo "📂 Files in possible build directories:"
-            for dir in "${SEARCH_DIRS[@]}"; do
-              find "$dir" -type f || true
-            done
             exit 1
           fi
 
