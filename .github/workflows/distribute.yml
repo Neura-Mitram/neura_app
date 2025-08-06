@@ -24,7 +24,6 @@ env:
   BUILD_MODE: ${{ github.event.inputs.build_mode }}
   BUILD_FORMAT: ${{ github.event.inputs.build_format }}
   ANDROID_HOME: /usr/local/lib/android/sdk
-  PATH: /usr/local/lib/android/sdk/cmdline-tools/latest/bin:/usr/local/lib/android/sdk/platform-tools:$PATH
 
 jobs:
   build:
@@ -44,22 +43,34 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: 📦 Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}
+          key: android-sdk-${{ runner.os }}-35
+          restore-keys: |
+            android-sdk-${{ runner.os }}-
+
       - name: 📦 Install Android SDK components
         run: |
           sudo mkdir -p $ANDROID_HOME
           sudo apt-get update -y
-          sudo apt-get install -y wget unzip
+          sudo apt-get install -y wget unzip tar
 
-          # Download command-line tools
-          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-          sudo unzip -q cmdline-tools.zip -d $ANDROID_HOME
-          sudo mkdir -p $ANDROID_HOME/cmdline-tools/latest
-          sudo mv $ANDROID_HOME/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/ || true
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
 
-          # Accept licenses
+          if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            echo "🆕 Installing Android SDK Command Line Tools..."
+            wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+            sudo unzip -q cmdline-tools.zip -d $ANDROID_HOME
+            sudo mkdir -p $ANDROID_HOME/cmdline-tools/latest
+            sudo mv $ANDROID_HOME/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/ || true
+          else
+            echo "✅ Android SDK already cached"
+          fi
+
           yes | sdkmanager --licenses
 
-          # Install all required SDK platforms, build tools & extras
           sdkmanager \
             "platform-tools" \
             "platforms;android-35" "build-tools;35.0.0" \
@@ -138,7 +149,8 @@ jobs:
           if [ "$BUILD_FORMAT" = "aab" ]; then
             FILE_PATH=$(find build/app/outputs/bundle -name '*.aab' | head -n 1)
           else
-            FILE_PATH=$(find build/app/outputs -name '*.apk' | head -n 1)
+            # Check both possible APK paths
+            FILE_PATH=$(find build/app/outputs/flutter-apk -name '*.apk' -o -path build/app/outputs/apk -name '*.apk' | head -n 1)
           fi
           if [ -z "$FILE_PATH" ]; then
             echo "❌ No build artifact found!"
@@ -146,6 +158,11 @@ jobs:
           fi
           echo "ARTIFACT_PATH=$FILE_PATH" >> $GITHUB_ENV
           echo "ARTIFACT_NAME=Neura-${BUILD_MODE}-${BUILD_FORMAT}-$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
+
+      - name: 📜 Show artifact path
+        run: |
+          echo "✅ Build artifact found at: ${{ env.ARTIFACT_PATH }}"
+          ls -lh $(dirname "${{ env.ARTIFACT_PATH }}")
 
       - name: 🔒 Verify code signing (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
