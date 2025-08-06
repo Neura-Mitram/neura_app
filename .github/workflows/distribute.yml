@@ -8,17 +8,13 @@ on:
         required: true
         default: 'release'
         type: choice
-        options:
-          - release
-          - debug
+        options: [release, debug]
       build_format:
         description: 'Build format'
         required: true
         default: 'apk'
         type: choice
-        options:
-          - apk
-          - aab
+        options: [apk, aab]
 
 env:
   BUILD_MODE: ${{ github.event.inputs.build_mode }}
@@ -43,6 +39,27 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: 📦 Cache Gradle & Maven
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.m2
+          key: gradle-maven-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-maven-${{ runner.os }}-
+
+      - name: 📦 Cache Kotlin compiler & serialization JARs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin
+            ~/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx
+          key: kotlin-jars-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            kotlin-jars-${{ runner.os }}-
+
       - name: 📦 Cache Android SDK
         uses: actions/cache@v4
         with:
@@ -51,17 +68,21 @@ jobs:
           restore-keys: |
             android-sdk-${{ runner.os }}-
 
-      - name: 📦 Install Android SDK components (minimal)
+      - name: 📦 Install Android SDK (minimal, with retries)
         run: |
+          set -e
           sudo mkdir -p $ANDROID_HOME
           sudo apt-get update -y
           sudo apt-get install -y wget unzip tar
-
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
 
           if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
             echo "🆕 Installing Android SDK Command Line Tools..."
-            wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+            for i in 1 2 3; do
+              wget --timeout=30 --tries=3 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip && break
+              echo "Retry $i for SDK tools..."
+              sleep 5
+            done
             sudo unzip -q cmdline-tools.zip -d $ANDROID_HOME
             sudo mkdir -p $ANDROID_HOME/cmdline-tools/latest
             sudo mv $ANDROID_HOME/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/ || true
@@ -70,16 +91,13 @@ jobs:
           fi
 
           yes | sdkmanager --licenses
-
-          # Install only what is needed for compileSdk=35
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-35" "build-tools;35.0.0"
-
-      - name: 🧹 Clean Gradle cache
-        run: |
-          rm -rf ~/.gradle/caches/
-          rm -rf ~/.gradle/wrapper/
+          for pkg in "platform-tools" "platforms;android-35" "build-tools;35.0.0"; do
+            for i in 1 2 3; do
+              sdkmanager "$pkg" && break
+              echo "Retry $i for $pkg..."
+              sleep 5
+            done
+          done
 
       - name: ⚙️ Set up Flutter
         uses: subosito/flutter-action@v2
@@ -88,17 +106,15 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: 📦 Cache Flutter & Gradle deps
+      - name: 📦 Cache Flutter deps
         uses: actions/cache@v4
         with:
           path: |
             ~/.pub-cache
-            android/.gradle
             .dart_tool
-            build
-          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
+          key: flutter-deps-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
           restore-keys: |
-            ${{ runner.os }}-flutter-
+            flutter-deps-${{ runner.os }}-
 
       - name: 🔐 Write google-services.json
         run: |
@@ -112,7 +128,7 @@ jobs:
       - name: 📦 Install Flutter dependencies
         run: flutter pub get
 
-      - name: 📥 Pre-cache Flutter engine artifacts
+      - name: 📥 Pre-cache Flutter engine
         run: flutter precache --android
 
       - name: 🛠️ Gradle settings workaround
@@ -127,25 +143,25 @@ jobs:
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=../keystore.jks" >> android/key.properties
 
-      - name: 🏗️ Build APK or AAB
+      - name: 🏗️ Build APK/AAB
         run: |
           echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode..."
           if [ "$BUILD_MODE" = "release" ]; then
             if [ "$BUILD_FORMAT" = "apk" ]; then
-              flutter build apk --release --no-shrink --verbose
+              flutter build apk --release --no-shrink
             else
-              flutter build appbundle --release --no-shrink --verbose
+              flutter build appbundle --release --no-shrink
             fi
           else
-            flutter build apk --debug --verbose
+            flutter build apk --debug
           fi
 
-      - name: 🧮 Set artifact path
+      - name: 🧮 Find build artifact
         run: |
           if [ "$BUILD_FORMAT" = "aab" ]; then
             FILE_PATH=$(find build/app/outputs/bundle -name '*.aab' | head -n 1)
           else
-            FILE_PATH=$(find build/app/outputs/flutter-apk -name '*.apk' -o -path build/app/outputs/apk -name '*.apk' | head -n 1)
+            FILE_PATH=$(find build/app/outputs -name '*.apk' | head -n 1)
           fi
           if [ -z "$FILE_PATH" ]; then
             echo "❌ No build artifact found!"
@@ -159,16 +175,16 @@ jobs:
           echo "✅ Build artifact found at: ${{ env.ARTIFACT_PATH }}"
           ls -lh $(dirname "${{ env.ARTIFACT_PATH }}")
 
-      - name: 🔒 Verify code signing (release only)
+      - name: 🔒 Verify signing (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
         run: |
           if [ "$BUILD_FORMAT" = "apk" ]; then
-            apksigner verify --verbose ${{ env.ARTIFACT_PATH }} || exit 1
+            apksigner verify --verbose ${{ env.ARTIFACT_PATH }}
           else
-            jarsigner -verify -verbose -certs ${{ env.ARTIFACT_PATH }} || exit 1
+            jarsigner -verify -verbose -certs ${{ env.ARTIFACT_PATH }}
           fi
 
-      - name: 🚀 Upload to Firebase App Distribution (release only)
+      - name: 🚀 Upload to Firebase (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
@@ -180,12 +196,19 @@ jobs:
             🚀 Neura v1.0.0+1 (${{ env.BUILD_FORMAT }})
             Built: $(date +'%Y-%m-%d %H:%M')
 
-      - name: ⬆️ Upload artifact to GitHub
+      - name: ⬆️ Upload to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.ARTIFACT_PATH }}
           retention-days: 7
+
+      - name: 📏 Show cache sizes
+        run: |
+          echo "📦 Gradle cache size:" && du -sh ~/.gradle || true
+          echo "📦 Maven cache size:" && du -sh ~/.m2 || true
+          echo "📦 Kotlin cache size:" && du -sh ~/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin || true
+          echo "📦 Flutter pub cache size:" && du -sh ~/.pub-cache || true
 
       - name: 🩺 Flutter Doctor (on failure)
         if: failure()
