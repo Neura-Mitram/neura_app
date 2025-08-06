@@ -41,9 +41,9 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
             ~/.m2
-          key: gradle-maven-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: gradle-maven-${{ runner.os }}-${{ env.BUILD_MODE }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-maven-${{ runner.os }}-
+            gradle-maven-${{ runner.os }}-${{ env.BUILD_MODE }}-
 
       - name: 📦 Cache Kotlin JARs
         uses: actions/cache@v4
@@ -55,13 +55,16 @@ jobs:
           restore-keys: |
             kotlin-jars-${{ runner.os }}-
 
-      - name: 📦 Cache Android SDK
+      - name: 📦 Cache Reduced Android SDK
         uses: actions/cache@v4
         with:
-          path: ${{ env.ANDROID_HOME }}
-          key: android-sdk-${{ runner.os }}-35
+          path: |
+            ${{ env.ANDROID_HOME }}/platforms
+            ${{ env.ANDROID_HOME }}/build-tools
+            ${{ env.ANDROID_HOME }}/platform-tools
+          key: android-sdk-min-${{ runner.os }}-35
           restore-keys: |
-            android-sdk-${{ runner.os }}-
+            android-sdk-min-${{ runner.os }}-
 
       - name: 📦 Cache Flutter deps
         uses: actions/cache@v4
@@ -73,7 +76,7 @@ jobs:
           restore-keys: |
             flutter-deps-${{ runner.os }}-
 
-      # ---------- Install Android SDK (only missing packages) ----------
+      # ---------- Install SDK if missing ----------
       - name: ⚙️ Install Android SDK (only missing packages)
         run: |
           install_sdk_package() {
@@ -121,7 +124,7 @@ jobs:
           mkdir -p android/app
           echo '${{ secrets.FIREBASE_SERVICES }}' > android/app/google-services.json
 
-      - name: 📦 Build Flutter bundle (assets + Dart)
+      - name: 🏗️ Build Flutter assets
         run: flutter build bundle --${BUILD_MODE}
 
       - name: 🏗️ Build APK/AAB with Gradle
