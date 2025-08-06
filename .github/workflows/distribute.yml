@@ -81,13 +81,6 @@ jobs:
           channel: stable
           cache: true
 
-      # ---------- Android SDK Install ----------
-      - name: 📦 Install Android SDK (minimal)
-        run: |
-          set -e
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
       # ---------- Build Steps ----------
       - name: 📦 Install Flutter dependencies
         run: flutter pub get
