@@ -51,7 +51,7 @@ jobs:
           restore-keys: |
             android-sdk-${{ runner.os }}-
 
-      - name: 📦 Install Android SDK components
+      - name: 📦 Install Android SDK components (minimal)
         run: |
           sudo mkdir -p $ANDROID_HOME
           sudo apt-get update -y
@@ -71,14 +71,10 @@ jobs:
 
           yes | sdkmanager --licenses
 
+          # Install only what is needed for compileSdk=35
           sdkmanager \
             "platform-tools" \
-            "platforms;android-35" "build-tools;35.0.0" \
-            "platforms;android-34" "build-tools;34.0.0" \
-            "platforms;android-33" "build-tools;33.0.0" \
-            "platforms;android-31" "build-tools;31.0.0" \
-            "cmake;3.22.1" \
-            "ndk;27.0.12077973"
+            "platforms;android-35" "build-tools;35.0.0"
 
       - name: 🧹 Clean Gradle cache
         run: |
@@ -149,7 +145,6 @@ jobs:
           if [ "$BUILD_FORMAT" = "aab" ]; then
             FILE_PATH=$(find build/app/outputs/bundle -name '*.aab' | head -n 1)
           else
-            # Check both possible APK paths
             FILE_PATH=$(find build/app/outputs/flutter-apk -name '*.apk' -o -path build/app/outputs/apk -name '*.apk' | head -n 1)
           fi
           if [ -z "$FILE_PATH" ]; then
