@@ -1,5 +1,6 @@
 package com.byshiladityamallick.neura
 
+import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import android.media.*
@@ -17,6 +18,12 @@ import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okio.ByteString
 import org.json.JSONObject
 import java.io.IOException
 import java.util.*
@@ -332,10 +339,8 @@ class MainActivity : FlutterActivity() {
 
     private fun openSmsAppForContacts(deviceId: String, token: String, message: String) {
         val url = "https://byshiladityamallick-neura-smart-assistant.hf.space/safety/list-sos-contacts"
-        val requestBody = RequestBody.create(
-            "application/json".toMediaTypeOrNull(),
-            """{ "device_id": "$deviceId" }"""
-        )
+        val requestBody = """{ "device_id": "$deviceId" }"""
+            .toRequestBody("application/json".toMediaTypeOrNull())
 
         val request = Request.Builder()
             .url(url)
@@ -407,7 +412,8 @@ class MainActivity : FlutterActivity() {
 
         return try {
             val appOps = getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
-            val mode = appOps?.unsafeCheckOpNoThrow(
+            @Suppress("DEPRECATION")
+            val mode = appOps?.checkOpNoThrow(
                 "android:get_usage_stats",
                 Process.myUid(),
                 packageName
