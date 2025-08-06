@@ -115,13 +115,14 @@ jobs:
           echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode..."
           if [ "$BUILD_MODE" = "release" ]; then
             if [ "$BUILD_FORMAT" = "apk" ]; then
-              flutter build apk --release --no-shrink --verbose --gradle-args="--stacktrace"
+              flutter build apk --release --no-shrink --verbose -- --stacktrace
             else
-              flutter build appbundle --release --no-shrink --verbose --gradle-args="--stacktrace"
+              flutter build appbundle --release --no-shrink --verbose -- --stacktrace
             fi
           else
-            flutter build apk --debug --verbose --gradle-args="--stacktrace"
+            flutter build apk --debug --verbose -- --stacktrace
           fi
+
 
       - name: 🧮 Find build artifact (supports all Gradle paths)
         run: |
