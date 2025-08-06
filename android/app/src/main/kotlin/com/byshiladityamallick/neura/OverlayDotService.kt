@@ -79,7 +79,7 @@ class OverlayDotService : Service() {
         startSupportingServices()
 
         if (isSmartTrackingEnabled()) {
-            startForegroundServiceCompat(ForegroundAppDetector::class.java)
+            startForegroundServiceCompat<ForegroundAppDetector>()
         }
     }
 
@@ -233,7 +233,7 @@ class OverlayDotService : Service() {
     }
 
     private fun startSupportingServices() {
-        startForegroundServiceCompat(LocationMonitorService::class.java)
+        startForegroundServiceCompat<LocationMonitorService>()
     }
 
     private fun isSmartTrackingEnabled(): Boolean {
