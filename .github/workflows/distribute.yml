@@ -85,6 +85,11 @@ jobs:
         run: |
           echo "android.repositoriesMode=preferSettings" >> gradle.properties
 
+      - name: 📦 Install required Android SDK components
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973"
+
       - name: 🔑 Configure signing keys (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
         run: |
@@ -107,18 +112,15 @@ jobs:
             flutter build apk --debug
           fi
 
-
       - name: 🧮 Set artifact path
         run: |
-         if [ "$BUILD_FORMAT" = "aab" ]; then
-          echo "ARTIFACT_PATH=build/app/outputs/bundle/release/app-release.aab" >> $GITHUB_ENV
-          elif [ "$BUILD_MODE" = "release" ]; then
-            echo "ARTIFACT_PATH=build/app/outputs/flutter-apk/app-release.apk" >> $GITHUB_ENV
+          if [ "$BUILD_FORMAT" = "aab" ]; then
+            echo "ARTIFACT_PATH=build/app/outputs/bundle/release/app-release.aab" >> $GITHUB_ENV
           else
-            echo "ARTIFACT_PATH=build/app/outputs/flutter-apk/app-debug.apk" >> $GITHUB_ENV
+            echo "ARTIFACT_PATH=build/app/outputs/flutter-apk/app-${BUILD_MODE}.apk" >> $GITHUB_ENV
           fi
+          echo "ARTIFACT_NAME=Neura-${BUILD_MODE}-${BUILD_FORMAT}-$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
 
-          
       - name: 🔒 Verify code signing (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
         run: |
