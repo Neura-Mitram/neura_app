@@ -7,21 +7,24 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.media.*
 import android.os.*
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.getSystemService
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.isActive
 import okhttp3.*
+import okio.ByteString
 import org.tensorflow.lite.Interpreter
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.TimeUnit
 
 class WakewordForegroundService : Service() {
-    // Constants
+
     private companion object {
         const val TAG = "WakewordService"
         const val NOTIFICATION_ID = 101
@@ -34,7 +37,6 @@ class WakewordForegroundService : Service() {
         const val INFERENCE_DELAY_MS = 100L
     }
 
-    // Services
     private var interpreter: Interpreter? = null
     private var audioRecord: AudioRecord? = null
     private var audioTrack: AudioTrack? = null
@@ -47,14 +49,12 @@ class WakewordForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-        
-        // Validate onboarding status
+
         if (!prefs.getBoolean("flutter.onboarding_completed", false)) {
             stopSelf()
             return
         }
 
-        // Android 14 Battery Optimization
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val info = Notification.ForegroundServiceInfo(
                 Notification.ForegroundServiceInfo.TYPE_MICROPHONE,
@@ -63,17 +63,14 @@ class WakewordForegroundService : Service() {
             setForegroundServiceBehavior(info)
         }
 
-        // Acquire wake lock
-        wakeLock = (getSystemService<POWER_SERVICE, PowerManager>()!!).run {
-            newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "neura::WakewordLock").apply {
-                acquire(WAKE_LOCK_TIMEOUT)
-            }
-        }
+        wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "neura::WakewordLock"
+        ).apply { acquire(WAKE_LOCK_TIMEOUT) }
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
-        
-        // Request audio focus
+
         requestAudioFocus()
     }
 
@@ -106,53 +103,47 @@ class WakewordForegroundService : Service() {
                 description = "Background service for wakeword detection"
                 setShowBadge(false)
             }
-            
-            getSystemService<NOTIFICATION_SERVICE, NotificationManager>()?.apply {
-                createNotificationChannel(channel)
-            }
+
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .createNotificationChannel(channel)
         }
     }
 
-    // Audio focus management
     private fun requestAudioFocus() {
-        val audioManager = getSystemService<AUDIO_SERVICE, AudioManager>() ?: return
-        
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val result = audioManager.requestAudioFocus(
             AudioManager.OnAudioFocusChangeListener { },
             AudioManager.STREAM_VOICE_CALL,
             AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
         )
-        
+
         if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             Log.w(TAG, "Audio focus not granted - wakeword detection may be impaired")
         }
     }
-    
+
     private fun abandonAudioFocus() {
-        val audioManager = getSystemService<AUDIO_SERVICE, AudioManager>() ?: return
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.abandonAudioFocus(null)
     }
 
     private suspend fun runInferenceLoop() {
         try {
-            // Load TFLite model
             val modelFile = File(filesDir, MODEL_FILE)
             if (!modelFile.exists()) {
                 Log.e(TAG, "Model file not found")
                 stopSelf()
                 return
             }
-            
+
             interpreter = Interpreter(modelFile)
 
-            // Initialize audio recording
             val bufferSize = AudioRecord.getMinBufferSize(
                 SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT
             )
-            
-            // Check permissions
+
             if (ContextCompat.checkSelfPermission(
                     this,
                     android.Manifest.permission.RECORD_AUDIO
@@ -170,7 +161,6 @@ class WakewordForegroundService : Service() {
                 bufferSize
             ).apply { startRecording() }
 
-            // Prepare buffers
             val inputSize = 16000
             val audioBuffer = ShortArray(inputSize)
             val inputBuffer = ByteBuffer.allocateDirect(inputSize * 2)
@@ -178,29 +168,25 @@ class WakewordForegroundService : Service() {
             val outputBuffer = ByteBuffer.allocateDirect(4)
                 .order(ByteOrder.nativeOrder())
 
-            // Main inference loop
-            while (isActive) {
+            while (serviceScope.isActive) {
                 val read = audioRecord?.read(audioBuffer, 0, inputSize) ?: 0
                 if (read <= 0) continue
 
-                // Process audio
                 inputBuffer.clear()
                 for (i in 0 until read) inputBuffer.putShort(audioBuffer[i])
                 outputBuffer.clear()
-                
+
                 interpreter?.run(inputBuffer, outputBuffer)
                 outputBuffer.rewind()
                 val score = outputBuffer.float
 
-                // Trigger logic
                 val now = System.currentTimeMillis()
                 if (score > 0.8f && now - lastTriggeredAt > COOLDOWN_MS) {
                     lastTriggeredAt = now
                     handleWakewordTrigger()
-                    break // Exit loop after trigger
+                    break
                 }
-                
-                // Energy efficiency delay
+
                 delay(INFERENCE_DELAY_MS)
             }
         } catch (e: Exception) {
@@ -213,21 +199,17 @@ class WakewordForegroundService : Service() {
 
     private fun handleWakewordTrigger() {
         try {
-            // 1. Vibrate
-            (getSystemService<VIBRATOR_SERVICE, Vibrator>())?.vibrate(
+            (getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).vibrate(
                 VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
             )
 
-            // 2. Start overlay service
             ContextCompat.startForegroundService(
                 this,
                 Intent(this, OverlayDotService::class.java)
             )
 
-            // 3. Broadcast event
             sendBroadcast(Intent("com.neura.WAKEWORD_TRIGGERED"))
 
-            // 4. Play welcome sound
             serviceScope.launch {
                 playWelcomeSound()
             }
@@ -241,7 +223,7 @@ class WakewordForegroundService : Service() {
             val voicePref = prefs.getString("flutter.voice", "male") ?: "male"
             val langPref = prefs.getString("flutter.preferred_lang", "en") ?: "en"
             val voiceId = if (voicePref == "female") "onwK4e9ZLuTAKqWW03F9" else "EXAVITQu4vr4xnSDxMaL"
-            
+
             val encodedText = WAKE_PHRASE.replace(" ", "%20")
             val ttsUrl = "wss://byshiladityamallick-neura-smart-assistant.hf.space/" +
                     "ws/stream/elevenlabs?text=$encodedText&voice_id=$voiceId&lang=$langPref"
@@ -283,7 +265,6 @@ class WakewordForegroundService : Service() {
                 }
             })
 
-            // Close websocket after 15 seconds timeout
             withContext(Dispatchers.IO) {
                 delay(15000)
                 webSocket.close(1000, "Timeout")
@@ -311,13 +292,13 @@ class WakewordForegroundService : Service() {
     private fun cleanupResources() {
         try {
             abandonAudioFocus()
-            
+
             audioRecord?.apply {
                 if (recordingState == AudioRecord.RECORDSTATE_RECORDING) stop()
                 release()
             }
             audioRecord = null
-            
+
             releaseAudioTrack()
             interpreter?.close()
             interpreter = null
