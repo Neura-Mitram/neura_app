@@ -127,11 +127,19 @@ jobs:
       - name: 🧮 Set artifact path
         run: |
           if [ "$BUILD_FORMAT" = "aab" ]; then
-            echo "ARTIFACT_PATH=build/app/outputs/bundle/release/app-release.aab" >> $GITHUB_ENV
+            FILE_PATH=$(find build/app/outputs/bundle -name '*.aab' | head -n 1)
           else
-            echo "ARTIFACT_PATH=build/app/outputs/flutter-apk/app-${BUILD_MODE}.apk" >> $GITHUB_ENV
+            FILE_PATH=$(find build/app/outputs -name '*.apk' | head -n 1)
           fi
-          echo "ARTIFACT_NAME=Neura-${{ env.BUILD_MODE }}-${{ env.BUILD_FORMAT }}-$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
+
+          if [ -z "$FILE_PATH" ]; then
+            echo "❌ No build artifact found!"
+            exit 1
+          fi
+
+          echo "ARTIFACT_PATH=$FILE_PATH" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=Neura-${BUILD_MODE}-${BUILD_FORMAT}-$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
+
 
       - name: 🔒 Verify code signing (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
