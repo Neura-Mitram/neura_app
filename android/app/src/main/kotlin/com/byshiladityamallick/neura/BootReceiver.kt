@@ -3,8 +3,10 @@ package com.byshiladityamallick.neura
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.UserManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 
@@ -20,63 +22,73 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == null) return
-        
+
         val validActions = setOf(
             Intent.ACTION_BOOT_COMPLETED,
-            "android.intent.action.QUICKBOOT_POWERON"  // For OEM-specific boot events
+            Intent.ACTION_LOCKED_BOOT_COMPLETED, // Handle direct boot
+            "android.intent.action.QUICKBOOT_POWERON" // OEM-specific
         )
-        
+
         if (!validActions.contains(intent.action)) {
             Log.w(TAG, "Unsupported action received: ${intent.action}")
             return
         }
 
-        Log.i(TAG, "Device boot completed - starting services")
-        
+        // ✅ Prevent Foreground Service start until device is unlocked
+        val userManager = context.getSystemService(Context.USER_SERVICE) as UserManager
+        if (!userManager.isUserUnlocked) {
+            Log.i(TAG, "Device is locked - delaying service start until unlock")
+            return
+        }
+
+        Log.i(TAG, "Device boot completed & unlocked - starting services")
+
         try {
-            // 1. Get shared preferences safely
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            
-            // 2. Validate onboarding status
+
             if (!prefs.getBoolean(KEY_ONBOARDING, false)) {
                 Log.w(TAG, "Onboarding not completed - skipping auto-start")
                 return
             }
 
-            // 3. Start services based on configuration
-            when (prefs.getString(KEY_MODE, "manual")) {
-                "ambient" -> {
-                    startServiceCompat(context, WakewordForegroundService::class.java)
-                    startServiceCompat(context, LocationMonitorService::class.java)
+            val startServices = {
+                when (prefs.getString(KEY_MODE, "manual")) {
+                    "ambient" -> {
+                        startServiceCompat(context, WakewordForegroundService::class.java)
+                        startServiceCompat(context, LocationMonitorService::class.java)
+                    }
+                }
+
+                startServiceCompat(context, OverlayDotService::class.java) {
+                    putExtra("check_nudge_fallback", true)
+                }
+
+                if (prefs.getBoolean(KEY_SMART_TRACKING, false)) {
+                    startServiceCompat(context, ForegroundAppDetector::class.java)
                 }
             }
 
-            // 4. Start overlay service with fallback
-            startServiceCompat(context, OverlayDotService::class.java) {
-                putExtra("check_nudge_fallback", true)
+            // Delay only on Android 14+ to avoid ForegroundServiceStartNotAllowedException
+            if (Build.VERSION.SDK_INT >= 34) {
+                Handler(Looper.getMainLooper()).postDelayed(startServices, 5000)
+            } else {
+                startServices()
             }
 
-            // 5. Start app detector if enabled
-            if (prefs.getBoolean(KEY_SMART_TRACKING, false)) {
-                startServiceCompat(context, ForegroundAppDetector::class.java)
-            }
-            
-            Log.i(TAG, "Boot services launched successfully")
+            Log.i(TAG, "BootReceiver setup complete")
         } catch (e: Exception) {
             Log.e(TAG, "Critical error during boot sequence", e)
         }
     }
 
     private fun startServiceCompat(
-        context: Context, 
+        context: Context,
         serviceClass: Class<*>,
         intentConfig: (Intent.() -> Unit)? = null
     ) {
         try {
             Intent(context, serviceClass).apply {
                 intentConfig?.invoke(this)
-                
-                // Use modern ContextCompat for service starting
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     ContextCompat.startForegroundService(context, this)
                 } else {
@@ -89,3 +101,4 @@ class BootReceiver : BroadcastReceiver() {
         }
     }
 }
+
