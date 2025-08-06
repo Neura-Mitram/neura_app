@@ -23,12 +23,14 @@ on:
 env:
   BUILD_MODE: ${{ github.event.inputs.build_mode }}
   BUILD_FORMAT: ${{ github.event.inputs.build_format }}
+  ANDROID_HOME: /usr/local/lib/android/sdk
+  PATH: /usr/local/lib/android/sdk/cmdline-tools/latest/bin:/usr/local/lib/android/sdk/platform-tools:$PATH
 
 jobs:
   build:
     name: 🚀 Build & Distribute
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: 🔁 Checkout code
@@ -44,20 +46,28 @@ jobs:
 
       - name: 📦 Install Android SDK components
         run: |
-          sudo mkdir -p /usr/local/lib/android/sdk
-          export ANDROID_HOME=/usr/local/lib/android/sdk
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
-          
-          # Install command-line tools
+          sudo mkdir -p $ANDROID_HOME
           sudo apt-get update -y
           sudo apt-get install -y wget unzip
+
+          # Download command-line tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
           sudo unzip -q cmdline-tools.zip -d $ANDROID_HOME
           sudo mkdir -p $ANDROID_HOME/cmdline-tools/latest
           sudo mv $ANDROID_HOME/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/ || true
-          
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973"
+
+          # Accept licenses
+          yes | sdkmanager --licenses
+
+          # Install all required SDK platforms, build tools & extras
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" "build-tools;35.0.0" \
+            "platforms;android-34" "build-tools;34.0.0" \
+            "platforms;android-33" "build-tools;33.0.0" \
+            "platforms;android-31" "build-tools;31.0.0" \
+            "cmake;3.22.1" \
+            "ndk;27.0.12077973"
 
       - name: 🧹 Clean Gradle cache
         run: |
@@ -98,9 +108,8 @@ jobs:
       - name: 📥 Pre-cache Flutter engine artifacts
         run: flutter precache --android
 
-      - name: 🛠️ Workaround Ensure gradle can resolve dependencies
-        run: |
-          echo "android.repositoriesMode=preferSettings" >> gradle.properties
+      - name: 🛠️ Gradle settings workaround
+        run: echo "android.repositoriesMode=preferSettings" >> gradle.properties
 
       - name: 🔑 Configure signing keys (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
@@ -116,12 +125,12 @@ jobs:
           echo "📦 Building $BUILD_FORMAT in $BUILD_MODE mode..."
           if [ "$BUILD_MODE" = "release" ]; then
             if [ "$BUILD_FORMAT" = "apk" ]; then
-              flutter build apk --release --no-shrink
+              flutter build apk --release --no-shrink --verbose
             else
-              flutter build appbundle --release --no-shrink
+              flutter build appbundle --release --no-shrink --verbose
             fi
           else
-            flutter build apk --debug
+            flutter build apk --debug --verbose
           fi
 
       - name: 🧮 Set artifact path
@@ -131,15 +140,12 @@ jobs:
           else
             FILE_PATH=$(find build/app/outputs -name '*.apk' | head -n 1)
           fi
-
           if [ -z "$FILE_PATH" ]; then
             echo "❌ No build artifact found!"
             exit 1
           fi
-
           echo "ARTIFACT_PATH=$FILE_PATH" >> $GITHUB_ENV
           echo "ARTIFACT_NAME=Neura-${BUILD_MODE}-${BUILD_FORMAT}-$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
-
 
       - name: 🔒 Verify code signing (release only)
         if: ${{ env.BUILD_MODE == 'release' }}
