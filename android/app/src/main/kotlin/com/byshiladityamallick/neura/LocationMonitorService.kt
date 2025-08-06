@@ -8,15 +8,19 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.*
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import kotlinx.coroutines.*
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import kotlin.math.*
@@ -170,7 +174,7 @@ class LocationMonitorService : Service(), LocationListener {
 
     private suspend fun sendTravelCheckRequest(lat: Double, lon: Double, deviceId: String, token: String) {
         val request = createTravelCheckRequest(lat, lon, deviceId, token)
-        
+
         try {
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return
@@ -228,8 +232,8 @@ class LocationMonitorService : Service(), LocationListener {
         val R = 6371 // Earth radius in km
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
-        val a = sin(dLat / 2).pow(2) + 
-                cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * 
+        val a = sin(dLat / 2).pow(2) +
+                cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
                 sin(dLon / 2).pow(2)
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
         return R * c
@@ -251,7 +255,6 @@ class LocationMonitorService : Service(), LocationListener {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // Required LocationListener methods
     override fun onProviderEnabled(provider: String) {}
     override fun onProviderDisabled(provider: String) {}
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
