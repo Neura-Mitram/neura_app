@@ -158,13 +158,13 @@ jobs:
 
       - name: 🧮 Find build artifact
         run: |
-          if [ "$BUILD_FORMAT" = "aab" ]; then
-            FILE_PATH=$(find build/app/outputs/bundle -name '*.aab' | head -n 1)
-          else
-            FILE_PATH=$(find build/app/outputs -name '*.apk' | head -n 1)
-          fi
+          FILE_PATH=$(find build/app -type f \( -name "*.apk" -o -name "*.aab" \) | head -n 1)
           if [ -z "$FILE_PATH" ]; then
             echo "❌ No build artifact found!"
+            echo "🔍 Listing build outputs for debugging..."
+            find build/app -type f | sort
+            echo "📜 Showing last 200 lines of Gradle log (if available)..."
+            find . -name "*.log" -exec tail -n 200 {} \; || true
             exit 1
           fi
           echo "ARTIFACT_PATH=$FILE_PATH" >> $GITHUB_ENV
