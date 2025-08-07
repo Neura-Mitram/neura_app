@@ -521,7 +521,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final theme = Theme.of(context);
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
     final avatarSize = isSmallScreen ? _avatarSizeSmall : _avatarSizeLarge;
-
+  
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -537,133 +537,130 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
           ],
         ),
-        body: SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: MediaQuery.of(context).size.height,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SetupProgressStepper(currentStep: SetupStep.onboarding),
-                  const SizedBox(height: 24),
-                  
-                  Text(
-                    "Set Up Your Neura",
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontSize: isSmallScreen ? 20 : null
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  Text(
-                    "Personalize your assistant's name and voice",
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.hintColor,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-                  
-                  // Name Field
-                  TextField(
-                    controller: _aiNameController,
-                    decoration: InputDecoration(
-                      labelText: "Assistant Name",
-                      prefixIcon: const Icon(Icons.person_outline),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  
-                  // Voice Selection
-                  Text("Choose Your Assistant's Voice", style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 16),
-                  
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 16,
-                    alignment: WrapAlignment.center,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      _buildVoiceOption(
-                        context: context,
-                        label: "Male",
-                        imagePath: 'assets/avatars/male_listening.png',
-                        isSelected: _selectedVoice == 'male',
-                        onTap: () => setState(() => _selectedVoice = 'male'),
-                        size: avatarSize,
+                      const SetupProgressStepper(currentStep: SetupStep.onboarding),
+                      const SizedBox(height: 24),
+  
+                      Text(
+                        "Set Up Your Neura",
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontSize: isSmallScreen ? 20 : null
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      _buildVoiceOption(
-                        context: context,
-                        label: "Female",
-                        imagePath: 'assets/avatars/female_listening.png',
-                        isSelected: _selectedVoice == 'female',
-                        onTap: () => setState(() => _selectedVoice = 'female'),
-                        size: avatarSize,
+                      const SizedBox(height: 8),
+  
+                      Text(
+                        "Personalize your assistant's name and voice",
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+  
+                      TextField(
+                        controller: _aiNameController,
+                        decoration: InputDecoration(
+                          labelText: "Assistant Name",
+                          prefixIcon: const Icon(Icons.person_outline),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+  
+                      Text("Choose Your Assistant's Voice", style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 16),
+  
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 16,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          _buildVoiceOption(
+                            context: context,
+                            label: "Male",
+                            imagePath: 'assets/avatars/male_listening.png',
+                            isSelected: _selectedVoice == 'male',
+                            onTap: () => setState(() => _selectedVoice = 'male'),
+                            size: avatarSize,
+                          ),
+                          _buildVoiceOption(
+                            context: context,
+                            label: "Female",
+                            imagePath: 'assets/avatars/female_listening.png',
+                            isSelected: _selectedVoice == 'female',
+                            onTap: () => setState(() => _selectedVoice = 'female'),
+                            size: avatarSize,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 40),
+  
+                      _buildLanguagePicker(context),
+                      const SizedBox(height: 30),
+  
+                      SwitchListTile(
+                        value: _smartTrackingEnabled,
+                        onChanged: (value) => setState(() => _smartTrackingEnabled = value),
+                        title: const Text("Enable Smart Detect Mode"),
+                        subtitle: const Text(
+                          "Allow Neura to detect which app you're using for context-aware assistance",
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        activeColor: theme.primaryColor,
+                      ),
+                      const SizedBox(height: 20),
+  
+                      if (!_permissionsAccepted)
+                        Text(
+                          "Please allow permissions to proceed",
+                          style: TextStyle(color: theme.colorScheme.error),
+                        ),
+                      const SizedBox(height: 16),
+  
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _isSaving || !_permissionsAccepted ? null : _handleSave,
+                          icon: _isSaving
+                              ? SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: theme.colorScheme.onPrimary,
+                                  ),
+                                )
+                              : const Icon(Icons.arrow_forward),
+                          label: const Text("Continue to Neura"),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 40),
-                  
-                  // Language Picker
-                  _buildLanguagePicker(context),
-                  const SizedBox(height: 30),
-                  
-                  // Smart Detect Toggle
-                  SwitchListTile(
-                    value: _smartTrackingEnabled,
-                    onChanged: (value) => setState(() => _smartTrackingEnabled = value),
-                    title: const Text("Enable Smart Detect Mode"),
-                    subtitle: const Text(
-                      "Allow Neura to detect which app you're using for context-aware assistance",
-                      style: TextStyle(fontSize: 12),
-                    ),
-                    activeColor: theme.primaryColor,
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // Permission Status
-                  if (!_permissionsAccepted)
-                    Text(
-                      "Please allow permissions to proceed",
-                      style: TextStyle(color: theme.colorScheme.error),
-                    ),
-                  const SizedBox(height: 16),
-                  
-                  // Continue Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _isSaving || !_permissionsAccepted ? null : _handleSave,
-                      icon: _isSaving
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: theme.colorScheme.onPrimary,
-                              ),
-                            )
-                          : const Icon(Icons.arrow_forward),
-                      label: const Text("Continue to Neura"),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
   }
+
 
   Widget _buildVoiceOption({
     required BuildContext context,
