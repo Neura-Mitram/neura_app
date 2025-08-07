@@ -209,68 +209,65 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(TranslationService.tr("Train Wakeword"))),
-      body: Column(
-        children: [
-          // 🟢 Progress Stepper on top
-          const SetupProgressStepper(currentStep: SetupStep.wakeword),
-          const SizedBox(height: 12),
+@override
+Widget build(BuildContext context) {
+  final theme = Theme.of(context);
 
-          // 🔄 Conditional content based on uploading state
-          Expanded(
-            child: isUploading
-                ? NeuraLoader(
-                    message: TranslationService.tr(
-                      "Uploading your voice samples...",
+  return Scaffold(
+    appBar: AppBar(
+      title: Text(TranslationService.tr("Train Wakeword")),
+    ),
+    body: LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SetupProgressStepper(currentStep: SetupStep.wakeword),
+                  const SizedBox(height: 20),
+
+                  if (isUploading)
+                    NeuraLoader(
+                      message: TranslationService.tr("Uploading your voice samples..."),
+                    )
+                  else ...[
+                    const SizedBox(height: 24),
+                    Text(
+                      TranslationService.tr("Say your assistant's name (${3 - currentStep} left)"),
+                      style: theme.textTheme.titleMedium,
+                      textAlign: TextAlign.center,
                     ),
-                  )
-                : Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 24),
-                        Text(
-                          TranslationService.tr(
-                            "Say your assistant's name (\${3 - currentStep} left)",
-                          ),
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 20),
-                        AnimatedWaveformBars(isRecording: isRecording),
-                        const SizedBox(height: 40),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.mic),
-                          onPressed: isRecording || currentStep >= 3
-                              ? null
-                              : _recordSample,
-                          label: Text(
-                            isRecording
-                                ? TranslationService.tr("Recording...")
-                                : TranslationService.tr(
-                                    "Record Sample \${currentStep + 1}",
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                        if (currentStep == 3)
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.upload),
-                            onPressed: _submitSamples,
-                            label: Text(
-                              TranslationService.tr("Upload Samples"),
-                            ),
-                          ),
-                      ],
+                    const SizedBox(height: 20),
+                    AnimatedWaveformBars(isRecording: isRecording),
+                    const SizedBox(height: 40),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.mic),
+                      onPressed: isRecording || currentStep >= 3 ? null : _recordSample,
+                      label: Text(
+                        isRecording
+                            ? TranslationService.tr("Recording...")
+                            : TranslationService.tr("Record Sample ${currentStep + 1}"),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 40),
+                    if (currentStep == 3)
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.upload),
+                        onPressed: _submitSamples,
+                        label: Text(TranslationService.tr("Upload Samples")),
+                      ),
+                  ],
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
-    );
-  }
+        );
+      },
+    ),
+  );
 }
+
