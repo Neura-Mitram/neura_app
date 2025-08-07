@@ -35,10 +35,9 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
     _recorder = FlutterSoundRecorder();
     _initializeRecorder();
 
-    // ✅ Load translations for preferred language
     WidgetsBinding.instance.addPostFrameCallback((_) {
-    TranslationService.loadScreenOnInit(context, "wakeword", onDone: () {
-      setState(() {}); // optional if you want to refresh UI
+      TranslationService.loadScreenOnInit(context, "wakeword", onDone: () {
+        setState(() {});
       });
     });
   }
@@ -81,9 +80,7 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
       );
       debugPrint("Backend model path: $backendModelPath");
 
-      final localModelPath = await AuthService().downloadWakewordModel(
-        deviceId,
-      );
+      final localModelPath = await AuthService().downloadWakewordModel(deviceId);
       if (localModelPath != null) {
         await prefs.setString('wakeword_model_path', localModelPath);
       }
@@ -97,9 +94,7 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
         await showDialog(
           context: context,
           builder: (ctx) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Container(
               decoration: BoxDecoration(
                 color: theme.dialogBackgroundColor,
@@ -109,12 +104,7 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Lottie.asset(
-                    'assets/neura_success_check.json',
-                    height: 120,
-                    repeat: false,
-                    animate: true,
-                  ),
+                  Lottie.asset('assets/neura_success_check.json', height: 120, repeat: false),
                   const SizedBox(height: 20),
                   Text(
                     TranslationService.tr("Wakeword Trained!"),
@@ -125,9 +115,7 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    TranslationService.tr(
-                      "Your assistant can now recognize your voice 🧠",
-                    ),
+                    TranslationService.tr("Your assistant can now recognize your voice 🧠"),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.7),
                     ),
@@ -141,10 +129,7 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
                     onPressed: () {
                       Navigator.pop(ctx);
@@ -167,9 +152,7 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              TranslationService.tr(
-                "Upload failed: {error}",
-              ).replaceFirst("{error}", "$e"),
+              TranslationService.tr("Upload failed: {error}").replaceFirst("{error}", "$e"),
             ),
           ),
         );
@@ -191,17 +174,16 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
   }
 
   Future<void> sendNudgeToNative(String emoji, String text, String lang) async {
-  try {
-    await platformNudge.invokeMethod('showNudgeBubble', {
-      'emoji': emoji,
-      'text': text,
-      'lang': lang,
-    });
-  } catch (e) {
-    print('Failed to show native nudge: $e');
+    try {
+      await platformNudge.invokeMethod('showNudgeBubble', {
+        'emoji': emoji,
+        'text': text,
+        'lang': lang,
+      });
+    } catch (e) {
+      print('Failed to show native nudge: $e');
+    }
   }
-}
-
 
   @override
   void dispose() {
@@ -209,65 +191,64 @@ class _WakewordTrainerScreenState extends State<WakewordTrainerScreen> {
     super.dispose();
   }
 
-@override
-Widget build(BuildContext context) {
-  final theme = Theme.of(context);
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
 
-  return Scaffold(
-    appBar: AppBar(
-      title: Text(TranslationService.tr("Train Wakeword")),
-    ),
-    body: LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SetupProgressStepper(currentStep: SetupStep.wakeword),
-                  const SizedBox(height: 20),
-
-                  if (isUploading)
-                    NeuraLoader(
-                      message: TranslationService.tr("Uploading your voice samples..."),
-                    )
-                  else ...[
-                    const SizedBox(height: 24),
-                    Text(
-                      TranslationService.tr("Say your assistant's name (${3 - currentStep} left)"),
-                      style: theme.textTheme.titleMedium,
-                      textAlign: TextAlign.center,
-                    ),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(TranslationService.tr("Train Wakeword")),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SetupProgressStepper(currentStep: SetupStep.wakeword),
                     const SizedBox(height: 20),
-                    AnimatedWaveformBars(isRecording: isRecording),
-                    const SizedBox(height: 40),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.mic),
-                      onPressed: isRecording || currentStep >= 3 ? null : _recordSample,
-                      label: Text(
-                        isRecording
-                            ? TranslationService.tr("Recording...")
-                            : TranslationService.tr("Record Sample ${currentStep + 1}"),
+                    if (isUploading)
+                      NeuraLoader(
+                        message: TranslationService.tr("Uploading your voice samples..."),
+                      )
+                    else ...[
+                      const SizedBox(height: 24),
+                      Text(
+                        TranslationService.tr("Say your assistant's name (${3 - currentStep} left)"),
+                        style: theme.textTheme.titleMedium,
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(height: 40),
-                    if (currentStep == 3)
+                      const SizedBox(height: 20),
+                      AnimatedWaveformBars(isRecording: isRecording),
+                      const SizedBox(height: 40),
                       ElevatedButton.icon(
-                        icon: const Icon(Icons.upload),
-                        onPressed: _submitSamples,
-                        label: Text(TranslationService.tr("Upload Samples")),
+                        icon: const Icon(Icons.mic),
+                        onPressed: isRecording || currentStep >= 3 ? null : _recordSample,
+                        label: Text(
+                          isRecording
+                              ? TranslationService.tr("Recording...")
+                              : TranslationService.tr("Record Sample ${currentStep + 1}"),
+                        ),
                       ),
+                      const SizedBox(height: 40),
+                      if (currentStep == 3)
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.upload),
+                          onPressed: _submitSamples,
+                          label: Text(TranslationService.tr("Upload Samples")),
+                        ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-        );
-      },
-    ),
-  );
+          );
+        },
+      ),
+    );
+  }
 }
-
