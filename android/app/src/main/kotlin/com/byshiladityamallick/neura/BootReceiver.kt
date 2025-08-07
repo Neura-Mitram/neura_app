@@ -9,96 +9,106 @@ import android.os.Looper
 import android.os.UserManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.work.*
+import java.util.concurrent.TimeUnit
 
 class BootReceiver : BroadcastReceiver() {
 
-    companion object {
-        private const val TAG = "BootReceiver"
-        private const val PREFS_NAME = "FlutterSharedPreferences"
-        private const val KEY_ONBOARDING = "flutter.onboarding_completed"
-        private const val KEY_MODE = "flutter.active_mode"
-        private const val KEY_SMART_TRACKING = "flutter.smart_tracking_enabled"
-    }
-
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action == null) return
+        if (intent?.action.isNullOrBlank()) return
 
         val validActions = setOf(
             Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_LOCKED_BOOT_COMPLETED, // Handle direct boot
-            "android.intent.action.QUICKBOOT_POWERON" // OEM-specific
+            Intent.ACTION_LOCKED_BOOT_COMPLETED,
+            "android.intent.action.QUICKBOOT_POWERON"
         )
 
-        if (!validActions.contains(intent.action)) {
-            Log.w(TAG, "Unsupported action received: ${intent.action}")
+        if (intent.action !in validActions) {
+            Log.w(TAG, "Unsupported boot action: ${intent.action}")
             return
         }
 
-        // ✅ Prevent Foreground Service start until device is unlocked
-        val userManager = context.getSystemService(Context.USER_SERVICE) as UserManager
-        if (!userManager.isUserUnlocked) {
-            Log.i(TAG, "Device is locked - delaying service start until unlock")
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+        if (userManager?.isUserUnlocked != true) {
+            Log.i(TAG, "User is locked, deferring boot operations")
             return
         }
 
-        Log.i(TAG, "Device boot completed & unlocked - starting services")
+        Log.i(TAG, "Boot event received, scheduling BootWorker")
 
-        try {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val request = OneTimeWorkRequestBuilder<BootWorker>()
+            .setInitialDelay(5, TimeUnit.SECONDS)
+            .build()
 
-            if (!prefs.getBoolean(KEY_ONBOARDING, false)) {
-                Log.w(TAG, "Onboarding not completed - skipping auto-start")
-                return
+        WorkManager.getInstance(context).enqueue(request)
+    }
+
+    companion object {
+        private const val TAG = "BootReceiver"
+    }
+}
+
+
+class BootWorker(appContext: Context, workerParams: WorkerParameters) :
+    Worker(appContext, workerParams) {
+
+    private val prefs = appContext.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+
+    override fun doWork(): Result {
+        val mode = prefs.getString("flutter.active_mode", "manual")
+        val smartTracking = prefs.getBoolean("flutter.smart_tracking_enabled", false)
+
+        return try {
+            if (!prefs.getBoolean("flutter.onboarding_completed", false)) {
+                Log.i(TAG, "Onboarding not complete – skipping service start")
+                return Result.success()
             }
 
-            val startServices = {
-                when (prefs.getString(KEY_MODE, "manual")) {
-                    "ambient" -> {
-                        startServiceCompat(context, WakewordForegroundService::class.java)
-                        startServiceCompat(context, LocationMonitorService::class.java)
-                    }
-                }
-
-                startServiceCompat(context, OverlayDotService::class.java) {
-                    putExtra("check_nudge_fallback", true)
-                }
-
-                if (prefs.getBoolean(KEY_SMART_TRACKING, false)) {
-                    startServiceCompat(context, ForegroundAppDetector::class.java)
-                }
+            if (mode == "ambient") {
+                startServiceCompat(WakewordForegroundService::class.java)
+                startServiceCompat(LocationMonitorService::class.java)
             }
 
-            // Delay only on Android 14+ to avoid ForegroundServiceStartNotAllowedException
-            if (Build.VERSION.SDK_INT >= 34) {
-                Handler(Looper.getMainLooper()).postDelayed(startServices, 5000)
-            } else {
-                startServices()
+            startServiceCompat(OverlayDotService::class.java) {
+                putExtra("check_nudge_fallback", true)
             }
 
-            Log.i(TAG, "BootReceiver setup complete")
+            if (smartTracking) {
+                startServiceCompat(ForegroundAppDetector::class.java)
+            }
+
+            Log.i(TAG, "Boot services started successfully")
+            Result.success()
+
         } catch (e: Exception) {
-            Log.e(TAG, "Critical error during boot sequence", e)
+            Log.e(TAG, "BootWorker failure", e)
+            Result.failure()
         }
     }
 
     private fun startServiceCompat(
-        context: Context,
         serviceClass: Class<*>,
         intentConfig: (Intent.() -> Unit)? = null
     ) {
         try {
-            Intent(context, serviceClass).apply {
+            val intent = Intent(applicationContext, serviceClass).apply {
                 intentConfig?.invoke(this)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    ContextCompat.startForegroundService(context, this)
-                } else {
-                    context.startService(this)
-                }
-                Log.d(TAG, "Service started: ${serviceClass.simpleName}")
             }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(applicationContext, intent)
+            } else {
+                applicationContext.startService(intent)
+            }
+
+            Log.d(TAG, "Started service: ${serviceClass.simpleName}")
+
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start ${serviceClass.simpleName}: ${e.message}")
+            Log.e(TAG, "Failed to start service: ${serviceClass.simpleName}", e)
         }
     }
-}
 
+    companion object {
+        private const val TAG = "BootWorker"
+    }
+}
