@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'dart:isolate';
 import 'package:flutter/material.dart';
@@ -28,10 +29,9 @@ final platform = MethodChannel('neura/wakeword');
 final platformMic = MethodChannel('com.neura/mic_control');
 final platformSos = MethodChannel('sos.screen.trigger');
 String? globalDeviceId;
-String? globalUserTier; // Added global tier storage
+String? globalUserTier;
 DateTime? lastSosCall;
 
-// Top-level function for isolate
 void _startStreamingIsolate(String deviceId) {
   WsService().startStreaming(deviceId);
 }
@@ -39,41 +39,49 @@ void _startStreamingIsolate(String deviceId) {
 void restartApp(BuildContext context) {
   Navigator.pushAndRemoveUntil(
     context,
-    MaterialPageRoute(builder: (context) => const NeuraApp()),
+    MaterialPageRoute(builder: (context) => NeuraApp(prefs: null)),
     (route) => false,
   );
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const NeuraApp());
+
+  SharedPreferences? prefs;
+  try {
+    await Firebase.initializeApp();
+    prefs = await SharedPreferences.getInstance();
+  } catch (e) {
+    debugPrint("Startup init error: \$e");
+  }
+
+  runApp(NeuraApp(prefs: prefs));
 }
 
 class NeuraApp extends StatefulWidget {
-  const NeuraApp({super.key});
+  final SharedPreferences? prefs;
+  const NeuraApp({super.key, required this.prefs});
 
   @override
   State<NeuraApp> createState() => _NeuraAppState();
 }
 
 class _NeuraAppState extends State<NeuraApp> {
-
   Future<Map<String, dynamic>> _loadInitialConfig() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    // Load all required onboarding flags and user tier
+    final prefs = widget.prefs ?? await SharedPreferences.getInstance();
+
     final deviceId = prefs.getString('device_id');
-    final tier = prefs.getString('tier') ?? "free"; // Restored tier
+    final tier = prefs.getString('tier') ?? "free";
     final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
     final sosContactCompleted = prefs.getBool('sos_contacts_completed') ?? false;
     final wakewordCompleted = prefs.getBool('wakeword_completed') ?? false;
 
     globalDeviceId = deviceId;
-    globalUserTier = tier; // Set global tier
-    
+    globalUserTier = tier;
+
     return {
       'isLoggedIn': deviceId != null && deviceId.isNotEmpty,
-      'userTier': tier, // Return tier in config
+      'userTier': tier,
       'needsOnboarding': !onboardingCompleted,
       'needssosContact': !sosContactCompleted,
       'needsWakeword': !wakewordCompleted,
@@ -82,7 +90,6 @@ class _NeuraAppState extends State<NeuraApp> {
 
   @override
   void dispose() {
-    // Clean up platform handlers
     platformMic.setMethodCallHandler(null);
     platformSos.setMethodCallHandler(null);
     super.dispose();
@@ -103,7 +110,7 @@ class _NeuraAppState extends State<NeuraApp> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const NeuraLoader(message: "Neura is getting ready...");
           }
-          
+
           if (snapshot.hasError) {
             return Scaffold(
               body: Center(
@@ -127,11 +134,10 @@ class _NeuraAppState extends State<NeuraApp> {
           }
 
           final config = snapshot.data!;
-          
-          
+
           return SplashRedirector(
             isLoggedIn: config['isLoggedIn'] as bool,
-            userTier: config['userTier'] as String, // Pass tier to redirector
+            userTier: config['userTier'] as String,
             needsOnboarding: config['needsOnboarding'] as bool,
             needssosContact: config['needssosContact'] as bool,
             needsWakeword: config['needsWakeword'] as bool,
@@ -153,8 +159,7 @@ class _NeuraAppState extends State<NeuraApp> {
         }
 
         return MaterialPageRoute(
-          builder: (_) =>
-              const Scaffold(body: Center(child: Text("404 – Page not found"))),
+          builder: (_) => const Scaffold(body: Center(child: Text("404 – Page not found"))),
         );
       },
       routes: {
@@ -179,7 +184,7 @@ class _NeuraAppState extends State<NeuraApp> {
 
 class SplashRedirector extends StatefulWidget {
   final bool isLoggedIn;
-  final String userTier; // Added tier parameter
+  final String userTier;
   final bool needsOnboarding;
   final bool needssosContact;
   final bool needsWakeword;
@@ -187,7 +192,7 @@ class SplashRedirector extends StatefulWidget {
   const SplashRedirector({
     super.key,
     required this.isLoggedIn,
-    required this.userTier, // Added tier
+    required this.userTier,
     required this.needsOnboarding,
     required this.needssosContact,
     required this.needsWakeword,
@@ -201,7 +206,6 @@ class _SplashRedirectorState extends State<SplashRedirector> {
   @override
   void initState() {
     super.initState();
-    // Route immediately without delay
     WidgetsBinding.instance.addPostFrameCallback((_) => _decideRoute());
   }
 
@@ -289,34 +293,7 @@ class _ChatLoaderState extends State<ChatLoader> {
   }
 
   Future<void> _initializeApp() async {
-  bool firebaseFailed = false;
-
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    debugPrint("🔥 Firebase init failed: $e");
-    firebaseFailed = true;
-  }
-
-  try {
-    await SharedPreferences.getInstance();
-  } catch (e) {
-    debugPrint("⚠️ SharedPreferences init error: $e");
-  }
-
-  if (!mounted) return;
-
-  if (firebaseFailed) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('⚠️ Firebase services unavailable. Some features may not work.'),
-        backgroundColor: Colors.redAccent,
-        duration: Duration(seconds: 3),
-      ),
-    );
-    }
-
-    setState(() => _isLoading = false);
+   setState(() => _isLoading = false);
   }
 
   @override
