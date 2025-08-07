@@ -105,24 +105,35 @@ class DeviceService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
     final deviceId = prefs.getString('device_id');
-
+  
     if (token == null || deviceId == null) {
       throw Exception("Missing auth or device ID");
     }
-
+  
     final uri = Uri.parse("$Baseurl/retry-device-fcm");
-    final request = http.MultipartRequest('POST', uri)
-      ..fields['token'] = fcmToken
-      ..fields['device_id'] = deviceId
-      ..headers['Authorization'] = 'Bearer $token';
-
-    final response = await http.Response.fromStream(await request.send());
-
+  
+    final body = jsonEncode({
+      "token": fcmToken,
+      "device_id": deviceId,
+    });
+  
+    final headers = {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
+  
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: body,
+    );
+  
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
       throw Exception("FCM update failed: ${error['detail'] ?? response.body}");
     }
   }
+
 
 // Add this method to check if app is running on an emulator
   Future<bool> isRunningOnEmulator() async {
