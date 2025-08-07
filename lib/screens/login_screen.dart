@@ -136,20 +136,19 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+Widget build(BuildContext context) {
+  final theme = Theme.of(context);
+  final screenWidth = MediaQuery.of(context).size.width;
+  final logoSize = screenWidth * 0.45;
 
-    final logoSize = screenWidth * 0.45;
-
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: screenHeight),
-            child: IntrinsicHeight(
+  return Scaffold(
+    backgroundColor: theme.scaffoldBackgroundColor,
+    body: SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
                 child: Column(
@@ -252,12 +251,13 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
-    );
-  }
+    ),
+  );
 }
+
 
 class AnimatedSmriti extends StatefulWidget {
   const AnimatedSmriti({super.key});
