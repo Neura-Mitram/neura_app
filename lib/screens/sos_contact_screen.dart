@@ -199,85 +199,86 @@ class _SosContactScreenState extends State<SosContactScreen> {
     );
   }
 
-@override
-Widget build(BuildContext context) {
-  final theme = Theme.of(context);
-  final screenWidth = MediaQuery.of(context).size.width;
-  final isSmall = screenWidth < 360;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmall = screenWidth < 360;
 
-  return Scaffold(
-    appBar: AppBar(
-      title: Text(
-        TranslationService.tr("My SOS Contacts"),
-        style: TextStyle(fontSize: isSmall ? 18 : 20),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          TranslationService.tr("My SOS Contacts"),
+          style: TextStyle(fontSize: isSmall ? 18 : 20),
+        ),
       ),
-    ),
-    body: LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SetupProgressStepper(currentStep: SetupStep.sos),
-                  SizedBox(height: isSmall ? 8 : 12),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SetupProgressStepper(currentStep: SetupStep.sos),
+                    SizedBox(height: isSmall ? 8 : 12),
 
-                  if (isLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else if (contacts.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 32),
-                      child: Center(
-                        child: Text(
-                          TranslationService.tr("No contacts added."),
-                          style: TextStyle(fontSize: isSmall ? 14 : 16),
-                        ),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: contacts.length,
-                      itemBuilder: (context, index) {
-                        final c = contacts[index];
-                        return ListTile(
-                          leading: Icon(
-                            Icons.contact_phone,
-                            color: theme.colorScheme.primary,
-                          ),
-                          title: Text(
-                            c['name'] ?? '',
+                    if (isLoading)
+                      const Center(child: CircularProgressIndicator())
+                    else if (contacts.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: Text(
+                            TranslationService.tr("No contacts added."),
                             style: TextStyle(fontSize: isSmall ? 14 : 16),
                           ),
-                          subtitle: Text(
-                            c['phone'] ?? '',
-                            style: TextStyle(fontSize: isSmall ? 12 : 14),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _deleteContact(c['id']),
-                          ),
-                        );
-                      },
-                    ),
+                        ),
+                      )
+                    else
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: contacts.length,
+                        itemBuilder: (context, index) {
+                          final c = contacts[index];
+                          return ListTile(
+                            leading: Icon(
+                              Icons.contact_phone,
+                              color: theme.colorScheme.primary,
+                            ),
+                            title: Text(
+                              c['name'] ?? '',
+                              style: TextStyle(fontSize: isSmall ? 14 : 16),
+                            ),
+                            subtitle: Text(
+                              c['phone'] ?? '',
+                              style: TextStyle(fontSize: isSmall ? 12 : 14),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () => _deleteContact(c['id']),
+                            ),
+                          );
+                        },
+                      ),
 
-                  const SizedBox(height: 24),
-                  _nextButton(isSmall),
-                ],
+                    const SizedBox(height: 24),
+                    _nextButton(isSmall),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
-    ),
-    floatingActionButton: FloatingActionButton(
-      onPressed: _addContactDialog,
-      backgroundColor: theme.colorScheme.primary,
-      child: const Icon(Icons.add),
-    ),
-  );
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addContactDialog,
+        backgroundColor: theme.colorScheme.primary,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
 }
