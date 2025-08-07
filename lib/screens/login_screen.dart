@@ -107,7 +107,8 @@ class _LoginScreenState extends State<LoginScreen>
             SnackBar(
               content: Text("✅ Device registered successfully."),
               duration: Duration(seconds: 2),
-              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              backgroundColor:
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
             ),
           );
         }
@@ -135,129 +136,125 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-@override
-Widget build(BuildContext context) {
-  final theme = Theme.of(context);
-  final screenWidth = MediaQuery.of(context).size.width;
-  final logoSize = screenWidth * 0.45;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final logoSize = screenWidth * 0.45;
 
-  return Scaffold(
-    backgroundColor: theme.scaffoldBackgroundColor,
-    body: SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SetupProgressStepper(currentStep: SetupStep.login),
-                    const SizedBox(height: 32),
-
-                    Container(
-                      width: logoSize,
-                      height: logoSize,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.colorScheme.primary.withAlpha(153),
-                            blurRadius: 50,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/splash/neura_logo.png',
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-
-                    Text(
-                      "Welcome to Neura Mitram",
-                      style: theme.textTheme.titleLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 10),
-
-                    const AnimatedSmriti(),
-                    const SizedBox(height: 50),
-
-                    FadeTransition(
-                      opacity: _fadeAnimation,
-                      child: SlideTransition(
-                        position: _slideAnimation,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.colorScheme.primary.withOpacity(0.4),
-                                blurRadius: 20,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: ElevatedButton(
-                            onPressed: handleAnonymousLogin,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.colorScheme.primary,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                            ),
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(
-                                vertical: 14.0,
-                                horizontal: 40,
-                              ),
-                              child: Text("Start Activate Neura"),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    if (message.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 6,
-                          children: [
-                            Icon(
-                              Icons.warning,
-                              color: theme.colorScheme.error,
-                              size: 20,
-                            ),
-                            Text(
-                              message,
-                              style: TextStyle(color: theme.colorScheme.error),
-                              textAlign: TextAlign.center,
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SetupProgressStepper(currentStep: SetupStep.login),
+                      const SizedBox(height: 32),
+                      Container(
+                        width: logoSize,
+                        height: logoSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.colorScheme.primary.withAlpha(153),
+                              blurRadius: 50,
+                              spreadRadius: 5,
                             ),
                           ],
                         ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/splash/neura_logo.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
-                  ],
+                      const SizedBox(height: 40),
+                      Text(
+                        "Welcome to Neura Mitram",
+                        style: theme.textTheme.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+                      const AnimatedSmriti(),
+                      const SizedBox(height: 50),
+                      FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: SlideTransition(
+                          position: _slideAnimation,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: theme.colorScheme.primary.withOpacity(0.4),
+                                  blurRadius: 20,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: ElevatedButton(
+                              onPressed: handleAnonymousLogin,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  vertical: 14.0,
+                                  horizontal: 40,
+                                ),
+                                child: Text("Start Activate Neura"),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      if (message.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 6,
+                            children: [
+                              Icon(
+                                Icons.warning,
+                                color: theme.colorScheme.error,
+                                size: 20,
+                              ),
+                              Text(
+                                message,
+                                style: TextStyle(color: theme.colorScheme.error),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
-
 
 class AnimatedSmriti extends StatefulWidget {
   const AnimatedSmriti({super.key});
