@@ -62,42 +62,45 @@ class DeviceService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
     final deviceId = prefs.getString('device_id');
-
+  
     if (deviceId == null || token == null) {
       throw Exception("Missing device ID or token");
     }
-
+  
     final platform = _getPlatform();
     final osVersion = await _getOsVersion();
-
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse("$Baseurl/update-device-context"),
+  
+    final uri = Uri.parse("$Baseurl/update-device-context");
+  
+    final body = {
+      "device_id": deviceId,
+      "device_type": platform,
+      "os_version": osVersion,
+      "output_audio_mode": outputAudioMode ?? 'speaker',
+      "preferred_delivery_mode": preferredDeliveryMode ?? 'text',
+      "device_token": deviceToken ?? '',
+    };
+  
+    final headers = {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+      if (fcmToken != null) 'X-FCM-Token': fcmToken,  // Custom FCM header
+    };
+  
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(body),
     );
-
-    request.fields['device_id'] = deviceId;
-    request.fields['device_type'] = platform;
-    request.fields['os_version'] = osVersion;
-    request.fields['output_audio_mode'] = outputAudioMode ?? 'speaker';
-    request.fields['preferred_delivery_mode'] = preferredDeliveryMode ?? 'text';
-    request.fields['device_token'] = deviceToken ?? '';
-
-    if (fcmToken != null) {
-      request.fields['fcm_token'] = fcmToken;
-    }
-
-    request.headers['Authorization'] = 'Bearer $token';
-
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
+  
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
       throw Exception("Update failed: ${error['detail'] ?? response.body}");
     }
-
-    print("✅ Device + FCM context updated together.");
+  
+    print("✅ Device + FCM context updated with JSON.");
   }
+
 
   /// Retry FCM TOKEN info to backend
   Future<void> retryFcmToken(String fcmToken) async {
