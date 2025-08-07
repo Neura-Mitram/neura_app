@@ -180,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       const SizedBox(height: 40),
                       Text(
-                        "Welcome to Neura Mitram",
+                        "🙏 Welcome to",
                         style: theme.textTheme.titleLarge,
                         textAlign: TextAlign.center,
                       ),
