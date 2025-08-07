@@ -57,7 +57,6 @@ class DeviceService {
     required String? fcmToken,
     String? outputAudioMode,
     String? preferredDeliveryMode,
-    String? deviceToken,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
@@ -78,7 +77,6 @@ class DeviceService {
       "os_version": osVersion,
       "output_audio_mode": outputAudioMode ?? 'speaker',
       "preferred_delivery_mode": preferredDeliveryMode ?? 'text',
-      "device_token": deviceToken ?? '',
     };
   
     final headers = {
