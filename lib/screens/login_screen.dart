@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  @override
+@override
 Widget build(BuildContext context) {
   final theme = Theme.of(context);
   final screenWidth = MediaQuery.of(context).size.width;
