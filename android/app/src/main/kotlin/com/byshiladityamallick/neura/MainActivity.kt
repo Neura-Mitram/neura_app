@@ -176,13 +176,20 @@ class MainActivity : FlutterActivity() {
 
     // Region: Service Management
     private inline fun <reified T> startServiceSafely(result: MethodChannel.Result) {
-        try {
-            val intent = Intent(this, T::class.java)
-            ContextCompat.startForegroundService(this, intent)
-            result.success(true)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start service", e)
-            result.error("SERVICE_ERROR", e.message, null)
+        coroutineScope.launch {
+            try {
+                delay(100)
+                val intent = Intent(this@MainActivity, T::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    ContextCompat.startForegroundService(this@MainActivity, intent)
+                } else {
+                    startService(intent)
+                }
+                result.success(true)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start service ${T::class.java.simpleName}", e)
+                result.error("SERVICE_ERROR", e.message, null)
+            }
         }
     }
 
@@ -192,7 +199,7 @@ class MainActivity : FlutterActivity() {
             stopService(intent)
             result.success(true)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to stop service", e)
+            Log.e(TAG, "Failed to stop service ${T::class.java.simpleName}", e)
             result.error("SERVICE_ERROR", e.message, null)
         }
     }
@@ -202,12 +209,8 @@ class MainActivity : FlutterActivity() {
     private fun acquireWakeLock(result: MethodChannel.Result) {
         try {
             if (wakeLock == null) {
-                val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
-                    ?: throw IllegalStateException("PowerManager unavailable")
-                wakeLock = pm.newWakeLock(
-                    PowerManager.PARTIAL_WAKE_LOCK,
-                    "neura::micLock"
-                ).apply {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "neura::micLock").apply {
                     setReferenceCounted(false)
                 }
             }
@@ -233,12 +236,7 @@ class MainActivity : FlutterActivity() {
 
     // Region: TTS Handling
     private fun playTtsStream(url: String) {
-        val bufferSize = AudioTrack.getMinBufferSize(
-            22050,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT
-        )
-
+        val bufferSize = AudioTrack.getMinBufferSize(22050, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val player = AudioTrack(
             AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -252,11 +250,11 @@ class MainActivity : FlutterActivity() {
             bufferSize,
             AudioTrack.MODE_STREAM,
             AudioManager.AUDIO_SESSION_ID_GENERATE
-        ).apply {
-            if (state != AudioTrack.STATE_INITIALIZED) {
-                release()
-                return
-            }
+        )
+
+        if (player.state != AudioTrack.STATE_INITIALIZED) {
+            player.release()
+            return
         }
 
         val request = Request.Builder().url(url).build()
@@ -266,7 +264,7 @@ class MainActivity : FlutterActivity() {
                     if (player.playState != AudioTrack.PLAYSTATE_PLAYING) player.play()
                     player.write(bytes.toByteArray(), 0, bytes.size)
                 } catch (e: Exception) {
-                    Log.e(TAG, "AudioTrack write failed", e)
+                    Log.e(TAG, "TTS stream error", e)
                     player.release()
                     webSocket.close(1000, "Audio error")
                 }
@@ -284,11 +282,7 @@ class MainActivity : FlutterActivity() {
             if (tts == null) {
                 tts = TextToSpeech(this) { status ->
                     if (status == TextToSpeech.SUCCESS) {
-                        tts?.language = if (tts?.isLanguageAvailable(Locale.US) == TextToSpeech.LANG_AVAILABLE) {
-                            Locale.US
-                        } else {
-                            Locale.ENGLISH
-                        }
+                        tts?.language = Locale.US
                         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "NEURA_TTS")
                     }
                 }
@@ -327,7 +321,8 @@ class MainActivity : FlutterActivity() {
 
     private fun openSosScreen(engine: FlutterEngine, message: String, location: String) {
         MethodChannel(engine.dartExecutor.binaryMessenger, "sos.screen.trigger").invokeMethod(
-            "openSosScreen", mapOf(
+            "openSosScreen",
+            mapOf(
                 "message" to message,
                 "location" to location,
                 "autoSms" to true,
@@ -339,8 +334,7 @@ class MainActivity : FlutterActivity() {
 
     private fun openSmsAppForContacts(deviceId: String, token: String, message: String) {
         val url = "https://byshiladityamallick-neura-smart-assistant.hf.space/safety/list-sos-contacts"
-        val requestBody = """{ "device_id": "$deviceId" }"""
-            .toRequestBody("application/json".toMediaTypeOrNull())
+        val requestBody = """{ "device_id": "$deviceId" }""".toRequestBody("application/json".toMediaTypeOrNull())
 
         val request = Request.Builder()
             .url(url)
@@ -350,28 +344,26 @@ class MainActivity : FlutterActivity() {
 
         okHttpClient.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e(TAG, "SOS contacts fetch failed", e)
+                Log.e(TAG, "Failed to fetch contacts", e)
             }
 
             override fun onResponse(call: Call, response: Response) {
                 response.body?.string()?.let { body ->
                     try {
-                        JSONObject(body).getJSONArray("contacts").let { contacts ->
-                            for (i in 0 until contacts.length()) {
-                                contacts.getJSONObject(i).getString("phone").let { phone ->
-                                    val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                        data = Uri.parse("smsto:$phone")
-                                        putExtra("sms_body", message)
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    if (intent.resolveActivity(packageManager) != null) {
-                                        startActivity(intent)
-                                    }
-                                }
+                        val contacts = JSONObject(body).getJSONArray("contacts")
+                        for (i in 0 until contacts.length()) {
+                            val phone = contacts.getJSONObject(i).getString("phone")
+                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("smsto:$phone")
+                                putExtra("sms_body", message)
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            if (intent.resolveActivity(packageManager) != null) {
+                                startActivity(intent)
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "SMS contact processing failed", e)
+                        Log.e(TAG, "SMS contact parsing failed", e)
                     }
                 }
             }
@@ -408,16 +400,11 @@ class MainActivity : FlutterActivity() {
 
     // Region: Permissions
     private fun hasUsageAccess(): Boolean {
-        if (Build.FINGERPRINT.contains("generic")) return true // Emulator bypass
-
         return try {
-            val appOps = getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
-            @Suppress("DEPRECATION")
-            val mode = appOps?.checkOpNoThrow(
-                "android:get_usage_stats",
-                Process.myUid(),
-                packageName
-            ) ?: AppOpsManager.MODE_IGNORED
+            val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val mode = appOps.checkOpNoThrow(
+                "android:get_usage_stats", Process.myUid(), packageName
+            )
             mode == AppOpsManager.MODE_ALLOWED
         } catch (e: Exception) {
             Log.e(TAG, "Usage access check failed", e)
@@ -436,13 +423,12 @@ class MainActivity : FlutterActivity() {
     private fun requestBatteryOptimizationIgnore() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
 
-        (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.let { pm ->
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:$packageName")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }.also { startActivity(it) }
-            }
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }.also { startActivity(it) }
         }
     }
     // End Region
@@ -461,11 +447,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun pushChatSummariesToFlutter() {
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString("cached_summary_list", "[]")?.let { json ->
-            FlutterEngineCache.getInstance().get("main_engine")?.let { engine ->
-                MethodChannel(engine.dartExecutor.binaryMessenger, "neura/chat/summary")
-                    .invokeMethod("pushChatSummaries", json)
-            }
+        val json = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("cached_summary_list", "[]")
+        FlutterEngineCache.getInstance().get("main_engine")?.let { engine ->
+            MethodChannel(engine.dartExecutor.binaryMessenger, "neura/chat/summary")
+                .invokeMethod("pushChatSummaries", json)
         }
     }
 
