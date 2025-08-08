@@ -95,6 +95,15 @@ class ForegroundAppDetector : Service() {
 
     private fun hasUsageAccessPermission(): Boolean {
         return try {
+            // ✅ First check Flutter's saved preference
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val grantedFlag = prefs.getBoolean("flutter.usage_access_granted", false)
+            if (grantedFlag) {
+                Log.d(TAG, "Usage access permission confirmed from SharedPreferences")
+                return true
+            }
+    
+            // 🔄 Fallback to actual system permission check
             val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
             val mode = appOps.checkOpNoThrow(
                 AppOpsManager.OPSTR_GET_USAGE_STATS,
@@ -102,7 +111,7 @@ class ForegroundAppDetector : Service() {
                 packageName
             )
             if (mode != AppOpsManager.MODE_ALLOWED) return false
-
+    
             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
             val stats = usageStatsManager.queryUsageStats(
@@ -110,13 +119,13 @@ class ForegroundAppDetector : Service() {
                 now - 1000 * 60,
                 now
             )
-            // Optional: Require some data for sanity check
             stats != null && stats.isNotEmpty()
         } catch (e: Exception) {
             Log.e(TAG, "Error checking usage access permission", e)
             false
         }
-    }
+      }
+
 
     private fun getForegroundAppPackage(): String? {
         return try {
