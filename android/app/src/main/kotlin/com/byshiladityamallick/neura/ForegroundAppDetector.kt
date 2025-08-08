@@ -95,8 +95,9 @@ class ForegroundAppDetector : Service() {
 
     private fun hasUsageAccessPermission(): Boolean {
         return try {
-            // ✅ First check Flutter's saved preference
             val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+    
+            // ✅ First check Flutter's stored flag
             val grantedFlag = prefs.getBoolean("flutter.usage_access_granted", false)
             if (grantedFlag) {
                 Log.d(TAG, "Usage access permission confirmed from SharedPreferences")
@@ -119,12 +120,21 @@ class ForegroundAppDetector : Service() {
                 now - 1000 * 60,
                 now
             )
-            stats != null && stats.isNotEmpty()
+            val granted = stats != null && stats.isNotEmpty()
+    
+            // ✅ If granted, persist it so Flutter doesn't have to re-check next time
+            if (granted) {
+                prefs.edit().putBoolean("flutter.usage_access_granted", true).apply()
+                Log.d(TAG, "Usage access permission saved to SharedPreferences")
+            }
+    
+            granted
         } catch (e: Exception) {
             Log.e(TAG, "Error checking usage access permission", e)
             false
         }
-      }
+    }
+
 
 
     private fun getForegroundAppPackage(): String? {
