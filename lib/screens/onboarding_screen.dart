@@ -213,48 +213,51 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<void> _requestPermissions() async {
-    // Step 1: Core permissions
-    final coreStatuses = await [
-      Permission.microphone,
-      Permission.location,
-      Permission.notification, // Added notification permission
-      Permission.systemAlertWindow,
-    ].request();
+  // Step 1: Core permissions
+  final coreStatuses = await [
+    Permission.microphone,
+    Permission.location,
+    Permission.notification, // Added notification permission
+    Permission.systemAlertWindow,
+  ].request();
 
-    final coreGranted = coreStatuses.values.every((s) => s.isGranted || s.isLimited);
-    
-    // Step 2: Background location (Android 10+)
-    if (coreGranted) {
-      await _requestBackgroundLocation();
-    }
-
-    // Step 3: Usage access
-    final usageGranted = await _hasUsageAccess();
-    if (!usageGranted && context.mounted) {
-      await _showUsageAccessDialog();
-    }
-
-    // Step 4: Exact alarms (Android 14+)
-    if (coreGranted) {
-      await _requestExactAlarmPermission();
-    }
-
-    // Step 5: Battery optimization
-    if (coreGranted && usageGranted && context.mounted) {
-      await _requestBatteryOptimization();
-    }
-
-    // Step 6: Full-screen intent (Android 10+)
-    if (coreGranted) {
-      await _requestFullScreenIntent();
-    }
-
-    // Update state
-    setState(() {
-      _permissionsAccepted = coreGranted && usageGranted;
-      if (!_permissionsAccepted) _deniedOnce = true;
-    });
+  final coreGranted = coreStatuses.values.every((s) => s.isGranted || s.isLimited);
+  
+  // Step 2: Background location (Android 10+)
+  if (coreGranted) {
+    await _requestBackgroundLocation();
   }
+
+  // Step 3: Usage access
+  bool usageGranted = await _hasUsageAccess();
+  if (!usageGranted && context.mounted) {
+    await _showUsageAccessDialog();
+    // 🔹 Re-check after dialog returns
+    usageGranted = await _hasUsageAccess();
+  }
+
+  // Step 4: Exact alarms (Android 14+)
+  if (coreGranted) {
+    await _requestExactAlarmPermission();
+  }
+
+  // Step 5: Battery optimization
+  if (coreGranted && usageGranted && context.mounted) {
+    await _requestBatteryOptimization();
+  }
+
+  // Step 6: Full-screen intent (Android 10+)
+  if (coreGranted) {
+    await _requestFullScreenIntent();
+  }
+
+  // Update state with latest usageGranted value
+  setState(() {
+    _permissionsAccepted = coreGranted && usageGranted;
+    if (!_permissionsAccepted) _deniedOnce = true;
+  });
+ }
+
 
   Future<void> _requestBackgroundLocation() async {
     if (await Permission.location.isGranted) {
@@ -377,42 +380,52 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<void> _showUsageAccessDialog() async {
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("App Access Required"),
-        content: const Text(
-          "To make Neura context-aware, we need permission to detect which "
-          "app you're using (e.g., Spotify, Gmail)."
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.settings),
-            label: const Text("Enable Access"),
-            onPressed: () async {
-              Navigator.pop(context);
-              await _openUsageAccessSettings();
-              await Future.delayed(_permissionDelay);
-              final usageGranted = await _hasUsageAccess();
-              
-              setState(() {
-                _permissionsAccepted = usageGranted;
-                if (!_permissionsAccepted) _deniedOnce = true;
-              });
-
-              if (!_permissionsAccepted && context.mounted) {
-                _showPermissionExplanation();
-              }
-            },
-          ),
-        ],
+  await showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("App Access Required"),
+      content: const Text(
+        "To make Neura context-aware, we need permission to detect which "
+        "app you're using (e.g., Spotify, Gmail)."
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.settings),
+          label: const Text("Enable Access"),
+          onPressed: () async {
+            Navigator.pop(context);
+            await _openUsageAccessSettings();
+
+            // Wait and poll for up to 5 seconds
+            bool usageGranted = false;
+            for (int i = 0; i < 5; i++) {
+              await Future.delayed(const Duration(seconds: 1));
+              usageGranted = await _hasUsageAccess();
+              if (usageGranted) break;
+            }
+
+            // Save to SharedPreferences so native can use it too
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('usage_access_granted', usageGranted);
+
+            setState(() {
+              _permissionsAccepted = usageGranted;
+              if (!_permissionsAccepted) _deniedOnce = true;
+            });
+
+            if (!_permissionsAccepted && context.mounted) {
+              _showPermissionExplanation();
+            }
+          },
+        ),
+      ],
+    ),
+  );
+ }
 
   void _showPermissionExplanation() {
     showDialog(
@@ -462,18 +475,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<bool> _hasUsageAccess() async {
-    if (await DeviceService().isRunningOnEmulator()) {
-      return true; // Skip check on emulator
-    }
-
-    try {
-      final result = await _platformPermission.invokeMethod('hasUsageAccess');
-      return result == true;
-    } catch (e) {
-      debugPrint("Usage access check error: $e");
-      return false;
-    }
+  if (await DeviceService().isRunningOnEmulator()) {
+    return true; // Skip check on emulator
   }
+
+  try {
+    final result = await _platformPermission.invokeMethod('hasUsageAccess');
+    debugPrint("Native hasUsageAccess returned: $result");
+
+    // Ensure it returns exactly true (bool) from Kotlin
+    return result == true;
+  } catch (e) {
+    debugPrint("Usage access check error: $e");
+    return false;
+  }
+ }
 
   Future<void> _openUsageAccessSettings() async {
     try {
@@ -803,15 +819,15 @@ class _PermissionExplanationDialog extends StatelessWidget {
           content: const SingleChildScrollView(
             child: Text(
               "To work properly, Neura needs these permissions:\n\n"
-              "🎤 Microphone — to hear your voice commands\n\n"
-              "📍 Location — for safety SOS & travel alerts\n"
-              "📍▪️ Background location — for alerts when app is closed\n\n"
-              "⏰ Exact Alarms — for reliable reminders\n\n"
-              "📲 App Access — to assist based on your activity\n\n"
-              "🔋 Battery — to stay active in Ambient Mode\n\n"
-              "🫧 Overlay — to show the listening dot anytime\n\n"
-              "🔔 Notifications — for SOS alerts and updates\n\n"
-              "📱 Full-Screen — for critical SOS alerts\n\n"
+              "🎙️ Microphone — Hear and respond to your voice commands\n\n"
+              "🗺️ Location — Enable SOS and travel alerts\n"
+              "📍 Background Location — Keep alerts active even when closed\n\n"
+              "⏰ Exact Alarms — Deliver reminders right on time\n\n"
+              "📲 App Usage Access — Assist you based on your activity\n\n"
+              "🔋 Battery Optimization — Stay active in Ambient Mode\n\n"
+              "🟢 Overlay Permission — Show listening dot anytime\n\n"
+              "🔔 Notifications — Send SOS alerts and important updates\n\n"
+              "📟 Full-Screen Alerts — Display urgent SOS messages instantly\n\n"
               "Neura never shares your data. Everything is encrypted for your safety.",
             ),
           ),
