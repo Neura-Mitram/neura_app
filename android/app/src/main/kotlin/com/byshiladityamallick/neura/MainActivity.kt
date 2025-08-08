@@ -1,5 +1,6 @@
 package com.byshiladityamallick.neura
 
+import android.app.usage.UsageStatsManager
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
@@ -28,7 +29,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.*
 import java.util.concurrent.TimeUnit
-import android.app.usage.UsageStatsManager
+
 
 
 class MainActivity : FlutterActivity() {
