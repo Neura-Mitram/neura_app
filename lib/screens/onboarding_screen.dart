@@ -21,7 +21,6 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen>
     with SingleTickerProviderStateMixin {
   // Constants
-  static const _platformPermission = MethodChannel('com.neura/permissions');
   static const _platformBattery = MethodChannel('com.neura/battery');
   static const _rtlLanguages = {'ar', 'he', 'fa', 'ur'};
   static const _permissionDelay = Duration(milliseconds: 800);
@@ -228,14 +227,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     await _requestBackgroundLocation();
   }
 
-  // Step 3: Usage access
-  bool usageGranted = await _hasUsageAccess();
-  if (!usageGranted && context.mounted) {
-    await _showUsageAccessDialog();
-    // 🔹 Re-check after dialog returns
-    usageGranted = await _hasUsageAccess();
-  }
-
   // Step 4: Exact alarms (Android 14+)
   if (coreGranted) {
     await _requestExactAlarmPermission();
@@ -253,7 +244,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   // Update state with latest usageGranted value
   setState(() {
-    _permissionsAccepted = coreGranted && usageGranted;
+    _permissionsAccepted = coreGranted;
     if (!_permissionsAccepted) _deniedOnce = true;
   });
  }
@@ -379,65 +370,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
   }
 
-    Future<void> _showUsageAccessDialog() async {
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("App Access Required"),
-        content: const Text(
-          "To make Neura context-aware, we need permission to detect which "
-          "app you're using (e.g., Spotify, Gmail)."
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.settings),
-            label: const Text("Enable Access"),
-            onPressed: () async {
-              Navigator.pop(context);
-              await _openUsageAccessSettings();
-  
-              if (!context.mounted) return;
-  
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    "Open 'Usage Access' and enable Neura, then return here."
-                  ),
-                  duration: Duration(seconds: 5),
-                ),
-              );
-  
-              bool usageGranted = false;
-              for (int i = 0; i < 10; i++) {
-                await Future.delayed(const Duration(seconds: 1));
-                usageGranted = await _hasUsageAccess();
-                debugPrint("Re-checking usage access: $usageGranted");
-                if (usageGranted) break;
-              }
-  
-              // Save to SharedPreferences so native and Flutter sync
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setBool('flutter.usage_access_granted', usageGranted);
-  
-              setState(() {
-                _permissionsAccepted = usageGranted;
-                if (!_permissionsAccepted) _deniedOnce = true;
-              });
-  
-              if (!_permissionsAccepted && context.mounted) {
-                _showPermissionExplanation();
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
 
   void _showPermissionExplanation() {
     showDialog(
@@ -484,44 +416,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         ],
       ),
     );
-  }
-
-  Future<bool> _hasUsageAccess() async {
-    if (await DeviceService().isRunningOnEmulator()) {
-      return true; // Skip check on emulator
-    }
-  
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final stored = prefs.getBool('flutter.usage_access_granted') ?? false;
-      if (stored) {
-        debugPrint("Usage access granted (cached in prefs)");
-        return true;
-      }
-  
-      final result = await _platformPermission.invokeMethod('hasUsageAccess');
-      debugPrint("Native hasUsageAccess returned: $result");
-  
-      final granted = result == true;
-  
-      if (granted) {
-        await prefs.setBool('flutter.usage_access_granted', true);
-      }
-  
-      return granted;
-    } catch (e) {
-      debugPrint("Usage access check error: $e");
-      return false;
-    }
-  }
-
-
-  Future<void> _openUsageAccessSettings() async {
-    try {
-      await _platformPermission.invokeMethod('openUsageAccess');
-    } catch (e) {
-      debugPrint("Error opening usage settings: $e");
-    }
   }
 
   Future<void> _requestBatteryExemption() async {
@@ -848,7 +742,6 @@ class _PermissionExplanationDialog extends StatelessWidget {
               "🗺️ Location — Enable SOS and travel alerts\n"
               "📍 Background Location — Keep alerts active even when closed\n\n"
               "⏰ Exact Alarms — Deliver reminders right on time\n\n"
-              "📲 App Usage Access — Assist you based on your activity\n\n"
               "🔋 Battery Optimization — Stay active in Ambient Mode\n\n"
               "🟢 Overlay Permission — Show listening dot anytime\n\n"
               "🔔 Notifications — Send SOS alerts and important updates\n\n"
