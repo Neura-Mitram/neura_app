@@ -274,6 +274,13 @@ class MainActivity : FlutterActivity() {
                 player.stop()
                 player.release()
             }
+
+	    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+        	Log.e(TAG, "TTS WebSocket failed", t)
+        	player.release()
+        	webSocket.close(1001, "Error occurred")
+            }
+
         })
     }
 
@@ -412,11 +419,56 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun openUsageAccessSettings() {
-        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }.also { startActivity(it) }
+    override fun onResume() {
+    super.onResume()
+    coroutineScope.launch(Dispatchers.IO) {
+        val hasAccess = checkUsageAccess()
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("flutter.usage_access_granted", hasAccess).apply()
+        Log.d(TAG, "onResume: persisted usage access = $hasAccess")
+     }
     }
+
+    private fun checkUsageAccess(): Boolean {
+    return try {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = appOps.checkOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            packageName
+        )
+        if (mode != AppOpsManager.MODE_ALLOWED) return false
+
+        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as android.app.usage.UsageStatsManager
+        val now = System.currentTimeMillis()
+        val stats = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY,
+            now - 5 * 60 * 1000,
+            now
+        )
+        stats != null && stats.isNotEmpty()
+     } catch (e: Exception) {
+        Log.e(TAG, "checkUsageAccess error", e)
+        false
+     }
+    }
+
+
+    private fun openUsageAccessSettings() {
+    try {
+        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        intent.putExtra("android.provider.extra.APP_PACKAGE", packageName)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        startActivity(intent)
+     } catch (e: Exception) {
+        Log.w(TAG, "Could not open usage access settings directly, opening app details", e)
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        intent.data = Uri.parse("package:$packageName")
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        startActivity(intent)
+     }
+    }
+
     // End Region
 
     // Region: Battery Optimization
@@ -456,10 +508,20 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
-        coroutineScope.cancel("Activity destroyed")
-        okHttpClient.dispatcher.executorService.shutdown()
-        tts?.shutdown()
-        wakeLock?.release()
-        super.onDestroy()
+    coroutineScope.cancel("Activity destroyed")
+    okHttpClient.dispatcher.executorService.shutdown()
+    tts?.shutdown()
+
+    try {
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+        }
+        wakeLock = null
+    } catch (e: Exception) {
+        Log.w(TAG, "Failed to release wakeLock safely", e)
     }
+
+     super.onDestroy()
+    }
+
 }
