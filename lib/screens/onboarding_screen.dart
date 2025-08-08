@@ -380,52 +380,56 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<void> _showUsageAccessDialog() async {
-  await showDialog(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text("App Access Required"),
-      content: const Text(
-        "To make Neura context-aware, we need permission to detect which "
-        "app you're using (e.g., Spotify, Gmail)."
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("App Access Required"),
+        content: const Text(
+          "To make Neura context-aware, we need permission to detect which "
+          "app you're using (e.g., Spotify, Gmail)."
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.settings),
+            label: const Text("Enable Access"),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _openUsageAccessSettings();
+  
+              // 🔹 Wait a little before checking (OEMs can be slow)
+              await Future.delayed(const Duration(seconds: 2));
+  
+              bool usageGranted = false;
+              for (int i = 0; i < 10; i++) { // extended polling window
+                await Future.delayed(const Duration(seconds: 1));
+                usageGranted = await _hasUsageAccess();
+                debugPrint("Re-checking usage access: $usageGranted");
+                if (usageGranted) break;
+              }
+  
+              // Save to SharedPreferences so native ForegroundAppDetector sees it
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('usage_access_granted', usageGranted);
+  
+              setState(() {
+                _permissionsAccepted = usageGranted;
+                if (!_permissionsAccepted) _deniedOnce = true;
+              });
+  
+              if (!_permissionsAccepted && context.mounted) {
+                _showPermissionExplanation();
+              }
+            },
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Cancel"),
-        ),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.settings),
-          label: const Text("Enable Access"),
-          onPressed: () async {
-            Navigator.pop(context);
-            await _openUsageAccessSettings();
+    );
+  }
 
-            // Wait and poll for up to 5 seconds
-            bool usageGranted = false;
-            for (int i = 0; i < 5; i++) {
-              await Future.delayed(const Duration(seconds: 1));
-              usageGranted = await _hasUsageAccess();
-              if (usageGranted) break;
-            }
-
-            // Save to SharedPreferences so native can use it too
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setBool('usage_access_granted', usageGranted);
-
-            setState(() {
-              _permissionsAccepted = usageGranted;
-              if (!_permissionsAccepted) _deniedOnce = true;
-            });
-
-            if (!_permissionsAccepted && context.mounted) {
-              _showPermissionExplanation();
-            }
-          },
-        ),
-      ],
-    ),
-  );
- }
 
   void _showPermissionExplanation() {
     showDialog(
@@ -475,21 +479,37 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<bool> _hasUsageAccess() async {
-  if (await DeviceService().isRunningOnEmulator()) {
-    return true; // Skip check on emulator
+    if (await DeviceService().isRunningOnEmulator()) {
+      return true; // Skip check on emulator
+    }
+  
+    try {
+      // 🔹 Check stored flag first (from SharedPreferences)
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getBool('usage_access_granted') ?? false;
+      if (stored) {
+        debugPrint("Usage access granted (cached in prefs)");
+        return true;
+      }
+  
+      // 🔹 Fallback to native check if not stored
+      final result = await _platformPermission.invokeMethod('hasUsageAccess');
+      debugPrint("Native hasUsageAccess returned: $result");
+  
+      final granted = result == true;
+  
+      // 🔹 If granted, store it for next time
+      if (granted) {
+        await prefs.setBool('usage_access_granted', true);
+      }
+  
+      return granted;
+    } catch (e) {
+      debugPrint("Usage access check error: $e");
+      return false;
+    }
   }
 
-  try {
-    final result = await _platformPermission.invokeMethod('hasUsageAccess');
-    debugPrint("Native hasUsageAccess returned: $result");
-
-    // Ensure it returns exactly true (bool) from Kotlin
-    return result == true;
-  } catch (e) {
-    debugPrint("Usage access check error: $e");
-    return false;
-  }
- }
 
   Future<void> _openUsageAccessSettings() async {
     try {
