@@ -2,6 +2,7 @@ package com.byshiladityamallick.neura
 
 import android.app.*
 import android.app.usage.UsageStatsManager
+import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import android.os.*
@@ -94,6 +95,14 @@ class ForegroundAppDetector : Service() {
 
     private fun hasUsageAccessPermission(): Boolean {
         return try {
+            val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val mode = appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(),
+                packageName
+            )
+            if (mode != AppOpsManager.MODE_ALLOWED) return false
+
             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
             val stats = usageStatsManager.queryUsageStats(
@@ -101,8 +110,10 @@ class ForegroundAppDetector : Service() {
                 now - 1000 * 60,
                 now
             )
+            // Optional: Require some data for sanity check
             stats != null && stats.isNotEmpty()
         } catch (e: Exception) {
+            Log.e(TAG, "Error checking usage access permission", e)
             false
         }
     }
