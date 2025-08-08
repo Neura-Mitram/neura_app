@@ -379,7 +379,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
   }
 
-  Future<void> _showUsageAccessDialog() async {
+    Future<void> _showUsageAccessDialog() async {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -400,20 +400,28 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               Navigator.pop(context);
               await _openUsageAccessSettings();
   
-              // 🔹 Wait a little before checking (OEMs can be slow)
-              await Future.delayed(const Duration(seconds: 2));
+              if (!context.mounted) return;
+  
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    "Open 'Usage Access' and enable Neura, then return here."
+                  ),
+                  duration: Duration(seconds: 5),
+                ),
+              );
   
               bool usageGranted = false;
-              for (int i = 0; i < 10; i++) { // extended polling window
+              for (int i = 0; i < 10; i++) {
                 await Future.delayed(const Duration(seconds: 1));
                 usageGranted = await _hasUsageAccess();
                 debugPrint("Re-checking usage access: $usageGranted");
                 if (usageGranted) break;
               }
   
-              // Save to SharedPreferences so native ForegroundAppDetector sees it
+              // Save to SharedPreferences so native and Flutter sync
               final prefs = await SharedPreferences.getInstance();
-              await prefs.setBool('usage_access_granted', usageGranted);
+              await prefs.setBool('flutter.usage_access_granted', usageGranted);
   
               setState(() {
                 _permissionsAccepted = usageGranted;
@@ -484,23 +492,20 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
   
     try {
-      // 🔹 Check stored flag first (from SharedPreferences)
       final prefs = await SharedPreferences.getInstance();
-      final stored = prefs.getBool('usage_access_granted') ?? false;
+      final stored = prefs.getBool('flutter.usage_access_granted') ?? false;
       if (stored) {
         debugPrint("Usage access granted (cached in prefs)");
         return true;
       }
   
-      // 🔹 Fallback to native check if not stored
       final result = await _platformPermission.invokeMethod('hasUsageAccess');
       debugPrint("Native hasUsageAccess returned: $result");
   
       final granted = result == true;
   
-      // 🔹 If granted, store it for next time
       if (granted) {
-        await prefs.setBool('usage_access_granted', true);
+        await prefs.setBool('flutter.usage_access_granted', true);
       }
   
       return granted;
