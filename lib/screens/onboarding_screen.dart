@@ -259,7 +259,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   });
  }
 
-Future<void> _requestOverlayPermission() async {
+ Future<void> _requestOverlayPermission() async {
   if (Platform.isAndroid) {
     bool canDraw = await Permission.systemAlertWindow.isGranted;
     if (!canDraw) {
@@ -302,7 +302,7 @@ Future<void> _requestBluetoothPermissions() async {
 
 
 
-  Future<void> _requestBackgroundLocation() async {
+ Future<void> _requestBackgroundLocation() async {
     if (await Permission.location.isGranted) {
       final status = await Permission.locationAlways.request();
       if (status.isPermanentlyDenied && context.mounted) {
@@ -798,7 +798,7 @@ class _PermissionExplanationDialog extends StatelessWidget {
               "🟢 Overlay Permission — Show listening dot anytime\n\n"
               "🔔 Notifications — Send SOS alerts and important updates\n\n"
               "📟 Full-Screen Alerts — Display urgent SOS messages instantly\n\n"
-	      "📶 Network — connect & assist better support.\n\n"
+	      	  "📶 Network — connect & assist better support.\n\n"
     	      "🔵 Bluetooth — connect devices for context assistance.\n\n"
               "Neura never shares your data. Everything is encrypted for your safety.",
             ),
