@@ -435,6 +435,31 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+	private fun startOverlayDotServiceDirect() {
+    val intent = Intent(this, OverlayDotService::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        ContextCompat.startForegroundService(this, intent)
+    } else {
+        startService(intent)
+    }
+	}
+	
+	private fun stopOverlayDotServiceDirect() {
+	    val intent = Intent(this, OverlayDotService::class.java)
+	    stopService(intent)
+	}
+	
+	override fun onResume() {
+	    super.onResume()
+	    stopOverlayDotServiceDirect()
+	}
+	
+	override fun onPause() {
+	    super.onPause()
+	    startOverlayDotServiceDirect()
+	}
+
+
     override fun onDestroy() {
     coroutineScope.cancel("Activity destroyed")
     okHttpClient.dispatcher.executorService.shutdown()
