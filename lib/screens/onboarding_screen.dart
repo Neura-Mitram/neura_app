@@ -212,19 +212,29 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<void> _requestPermissions() async {
-  // Step 1: Core permissions
+  // Step 1: Core permissions + storage
   final coreStatuses = await [
     Permission.microphone,
     Permission.location,
     Permission.notification, // Added notification permission
-    Permission.systemAlertWindow,
+    Permission.storage,
   ].request();
 
   final coreGranted = coreStatuses.values.every((s) => s.isGranted || s.isLimited);
   
+  // Step 1.5: Request overlay permission separately
+  if (coreGranted) {
+    await _requestOverlayPermission();
+  }
+
   // Step 2: Background location (Android 10+)
   if (coreGranted) {
     await _requestBackgroundLocation();
+  }
+
+  // Step 3: Bluetooth permissions (Android 12+)
+  if (coreGranted) {
+    await _requestBluetoothPermissions();
   }
 
   // Step 4: Exact alarms (Android 14+)
@@ -248,6 +258,48 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     if (!_permissionsAccepted) _deniedOnce = true;
   });
  }
+
+Future<void> _requestOverlayPermission() async {
+  if (Platform.isAndroid) {
+    bool canDraw = await Permission.systemAlertWindow.isGranted;
+    if (!canDraw) {
+      // Show a dialog explaining why you need overlay permission,
+      // then open system settings
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Overlay Permission Required"),
+          content: const Text(
+              "Neura needs overlay permission to show the listening indicator anytime."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await openAppSettings();
+              },
+              child: const Text("Open Settings"),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+}
+
+
+Future<void> _requestBluetoothPermissions() async {
+  if (Platform.isAndroid && (await DeviceService().sdkVersion) >= 31) {
+    await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+    ].request();
+  }
+}
+
 
 
   Future<void> _requestBackgroundLocation() async {
@@ -746,6 +798,8 @@ class _PermissionExplanationDialog extends StatelessWidget {
               "🟢 Overlay Permission — Show listening dot anytime\n\n"
               "🔔 Notifications — Send SOS alerts and important updates\n\n"
               "📟 Full-Screen Alerts — Display urgent SOS messages instantly\n\n"
+	      "📶 Network — connect & assist better support.\n\n"
+    	      "🔵 Bluetooth — connect devices for context assistance.\n\n"
               "Neura never shares your data. Everything is encrypted for your safety.",
             ),
           ),
