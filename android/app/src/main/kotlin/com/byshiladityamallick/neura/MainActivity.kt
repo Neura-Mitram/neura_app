@@ -45,7 +45,6 @@ class MainActivity : FlutterActivity() {
     }
 
     // Services
-    private var wakeLock: PowerManager.WakeLock? = null
     private var tts: TextToSpeech? = null
     private val ttsInitLock = Any()
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -73,8 +72,6 @@ class MainActivity : FlutterActivity() {
                     "startWakewordService" -> startServiceSafely<WakewordForegroundService>(result)
                     "startOverlayDotService" -> startServiceSafely<OverlayDotService>(result)
                     "stopOverlayDotService" -> stopServiceSafely<OverlayDotService>(result)
-                    "acquireWakeLock" -> acquireWakeLock(result)
-                    "releaseWakeLock" -> releaseWakeLock(result)
                     else -> result.notImplemented()
                 }
             }
@@ -193,34 +190,6 @@ class MainActivity : FlutterActivity() {
     }
     // End Region
 
-    // Region: WakeLock Management
-    private fun acquireWakeLock(result: MethodChannel.Result) {
-        try {
-            if (wakeLock == null) {
-                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "neura::micLock").apply {
-                    setReferenceCounted(false)
-                }
-            }
-            wakeLock?.acquire(10 * 60 * 1000L)
-            result.success(true)
-        } catch (e: Exception) {
-            Log.e(TAG, "WakeLock acquisition failed", e)
-            result.error("WAKE_LOCK_ERROR", e.message, null)
-        }
-    }
-
-    private fun releaseWakeLock(result: MethodChannel.Result) {
-        try {
-            wakeLock?.release()
-            wakeLock = null
-            result.success(true)
-        } catch (e: Exception) {
-            Log.e(TAG, "WakeLock release failed", e)
-            result.error("WAKE_LOCK_ERROR", e.message, null)
-        }
-    }
-    // End Region
 
     // Region: TTS Handling
     private fun playTtsStream(url: String) {
@@ -393,12 +362,6 @@ class MainActivity : FlutterActivity() {
     }
     // End Region
 
-    override fun onResume() {
-    	super.onResume()
-    }
-
-
-
     // Region: Battery Optimization
     private fun requestBatteryOptimizationIgnore() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
@@ -465,16 +428,7 @@ class MainActivity : FlutterActivity() {
     okHttpClient.dispatcher.executorService.shutdown()
     tts?.shutdown()
 
-    try {
-        if (wakeLock?.isHeld == true) {
-            wakeLock?.release()
-        }
-        wakeLock = null
-    } catch (e: Exception) {
-        Log.w(TAG, "Failed to release wakeLock safely", e)
-    }
-
-     super.onDestroy()
+    super.onDestroy()
     }
 
 }
