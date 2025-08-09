@@ -243,7 +243,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   // Step 5: Battery optimization
-  if (coreGranted && usageGranted && context.mounted) {
+  if (coreGranted && context.mounted) {
     await _requestBatteryOptimization();
   }
 
