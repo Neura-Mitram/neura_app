@@ -337,7 +337,7 @@ class ForegroundSensorService : Service(), SensorEventListener {
             val bm = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return false
             if (!hasPermission) {
                 // fallback: check whether adapter is enabled (less accurate)
-                val adapter = java.lang.reflect.Array.get(javaClass, 0) // dummy to avoid lint - replaced below
+                // val adapter = java.lang.reflect.Array.get(javaClass, 0) // dummy to avoid lint - replaced below
                 val bluetoothAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
                 return bluetoothAdapter?.isEnabled == true
             } else {
