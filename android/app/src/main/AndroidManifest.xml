@@ -16,6 +16,13 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+
+    <!-- Network and Bluetooth permissions -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
     
     <!-- Critical Additions for Logcat Errors -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/> <!-- Fixes avc: denied -->
@@ -96,6 +103,12 @@
             android:name=".OverlayDotService"
             android:permission="android.permission.SYSTEM_ALERT_WINDOW"
             android:exported="false"/>
+
+        <service
+            android:name=".ForegroundSensorService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|dataSync" />
+
 
         <!-- Broadcast Receivers (Add LOCKED_BOOT_COMPLETED) -->
         <receiver
